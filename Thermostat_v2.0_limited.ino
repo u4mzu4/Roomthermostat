@@ -1,10 +1,9 @@
 /*
-  ESP32-EVB development board
-  BME280 +DS18B20 sensors
+  ESP32-EVB development board (https://www.olimex.com/Products/IoT/ESP32/ESP32-EVB/open-source-hardware)
+  BME280 + DS18B20 sensors
   2.24" OLED SSD1309
-  I2C rotary
+  I2C rotary (https://github.com/Fattoresaimon/I2CEncoderV2)
   Blynk service
-  
 */
 
 //Includes
@@ -43,13 +42,13 @@ enum HEAT_SM {
 #define RELAYPIN2 33
 #define RELAYPIN3 4
 #define WATERPIN  17
-#define MEASFREQ  2000  //2 sec
 #define TIMEOUT   5000  //5 sec
 #define AFTERCIRCTIME 300000 //5min
-#define BUTIMER   47
-#define MAINTIMER 60017 //1min
+#define BUTIMER   61
+#define MAINTIMER 60013 //1min
 #define RADIATOR_HYST 0.1
 #define DS18B20_RESOLUTION 11
+#define ENCODER_ADDRESS 0x02
 
 //Global variables
 float actualTemperature;
@@ -57,12 +56,12 @@ float actualHumidity;
 float actualPressure;
 float transData;
 float setValue = 22.0;
-float setfloorTemp = 33.0;
-float setfloorHyst = 8.0;
+float setFloorTemp = 33.0;
+float setFloorHyst = 8.0;
 float waterTemperature;
 int setControlBase = 2;
-int buttontime = 0;
-bool firstrun =1;
+int buttonTime = 0;
+bool firstRun =1;
 bool boilerON = 0;
 bool floorON = 0;
 bool radiatorON = 0;
@@ -70,7 +69,7 @@ bool heatingON = 1;
 
 const char* ssid      = "DarpAsusNet_2.4";
 const char* password  = "andrew243";
-const char* host      = "http://192.168.178.53/";
+const char* host      = "http://192.168.178.53/"; //Temperature transmitter
 const char* auth = "08d1012dc20747899e929ef8a44a7486"; //Bylink auth
 
 //Init services
@@ -85,7 +84,7 @@ WidgetTerminal terminal(V19);
 OneWire oneWire(WATERPIN);
 DallasTemperature sensor(&oneWire);
 DeviceAddress sensorDeviceAddress;
-i2cEncoderLibV2 Encoder(0x02);
+i2cEncoderLibV2 Encoder(ENCODER_ADDRESS);
 
 void GetWaterTemp()
 {
@@ -121,14 +120,11 @@ void ReadBME280()
   if (setControlBase == 1)
   {
     actualTemperature = bme.readTemperature();
-    if (actualTemperature < 1.0) {
-      actualTemperature = lastvalidTemperature;
-    }
-    else if (actualTemperature > 100.0) {
+    if (actualTemperature < 1.0) || actualTemperature > 100.0) {
       actualTemperature = lastvalidTemperature;
     }
     else {
-    lastvalidTemperature = actualTemperature;
+      lastvalidTemperature = actualTemperature;
     }
   }
   actualHumidity = bme.readHumidity();
@@ -140,7 +136,7 @@ void ReadBME280()
   else {
     lastvalidPressure = actualPressure;
   }
-  if (firstrun){
+  if (firstRun){
     lastvalidHumidity = actualHumidity;
   }
   if (actualHumidity > 99.0) {
@@ -288,7 +284,10 @@ void ReadTransmitter()
     //setControlBase = 1;
     return;
   }
-  lastvalidtransTemp = transData;
+  else
+  {
+    lastvalidtransTemp = transData;
+  }
   if (setControlBase == 2)
   {
     actualTemperature = transData;
@@ -338,7 +337,7 @@ void ManageHeating()
       boilerON = 0;
       radiatorON = 0;
       floorON = 0;
-      storeFloorHyst = setfloorHyst;
+      storeFloorHyst = setFloorHyst;
       laststate = OFF;
       Blynk.virtualWrite(V7, boilerON);
       Blynk.virtualWrite(V8, floorON);
@@ -351,20 +350,20 @@ void ManageHeating()
       digitalWrite(RELAYPIN2, 1);
       boilerON = 1;
       radiatorON = 1;
-      storeFloorHyst = setfloorHyst;
-      setfloorHyst = 1.0;
+      storeFloorHyst = setFloorHyst;
+      setFloorHyst = 1.0;
       heatstate = RADIATOR_ON;
       Blynk.virtualWrite(V7, boilerON);
       Blynk.virtualWrite(V9, radiatorON); 
       break;
     }
-    if (waterTemperature < (setfloorTemp - setfloorHyst))
+    if (waterTemperature < (setFloorTemp - setFloorHyst))
     {
       digitalWrite(RELAYPIN1, 1);
       digitalWrite(RELAYPIN3, 1);
       boilerON = 1;
       floorON = 1;
-      storeFloorHyst = setfloorHyst;
+      storeFloorHyst = setFloorHyst;
       heatstate = FLOOR_ON;
       Blynk.virtualWrite(V7, boilerON);
       Blynk.virtualWrite(V8, floorON);
@@ -375,7 +374,7 @@ void ManageHeating()
     
     case RADIATOR_ON:
     {
-     if (waterTemperature < (setfloorTemp - setfloorHyst))
+     if (waterTemperature < (setFloorTemp - setFloorHyst))
      {
       digitalWrite(RELAYPIN3, 1);
       floorON = 1;
@@ -392,10 +391,10 @@ void ManageHeating()
       boilerON = 0;
       radiatorON = 0;
       floorON = 1;
-      setfloorHyst = storeFloorHyst;
+      setFloorHyst = storeFloorHyst;
       heatstate = PUMPOVERRUN;
       laststate = RADIATOR_ON;
-      Blynk.virtualWrite(V11, setfloorHyst);
+      Blynk.virtualWrite(V11, setFloorHyst);
       Blynk.virtualWrite(V7, boilerON);
       Blynk.virtualWrite(V8, floorON);
       Blynk.virtualWrite(V9, radiatorON); 
@@ -410,15 +409,15 @@ void ManageHeating()
      {
       digitalWrite(RELAYPIN2, 1);
       radiatorON = 1;
-      storeFloorHyst = setfloorHyst;
-      setfloorHyst = 1.0;
+      storeFloorHyst = setFloorHyst;
+      setFloorHyst = 1.0;
       heatstate = ALL_ON;
       laststate = FLOOR_ON;
-      Blynk.virtualWrite(V11, setfloorHyst);
+      Blynk.virtualWrite(V11, setFloorHyst);
       Blynk.virtualWrite(V9, radiatorON); 
       break;
      }
-     if (waterTemperature > setfloorTemp)
+     if (waterTemperature > setFloorTemp)
      {
       digitalWrite(RELAYPIN1, 0);
       boilerON = 0;
@@ -435,14 +434,14 @@ void ManageHeating()
      {
       digitalWrite(RELAYPIN2, 0);
       radiatorON = 0;
-      setfloorHyst = storeFloorHyst;
+      setFloorHyst = storeFloorHyst;
       heatstate = FLOOR_ON;
       laststate = ALL_ON;
-      Blynk.virtualWrite(V11, setfloorHyst);
+      Blynk.virtualWrite(V11, setFloorHyst);
       Blynk.virtualWrite(V9, radiatorON); 
       break;
      }
-     if (waterTemperature > setfloorTemp)
+     if (waterTemperature > setFloorTemp)
      {
       digitalWrite(RELAYPIN3, 0);
       floorON = 0;
@@ -482,20 +481,19 @@ void DrawDisplay()
   {
     case INIT:
     {
-      firstrun = 0;
       infobox = MAIN;
       break;
     }
     case MAIN:
     {
       Draw_RoomTemp();
-      if (buttontime>2000)
+      if (buttonTime>2000)
       {
         infobox = SETTING;
         stateTimeout=millis();
         break;
       }
-      if (buttontime>73)
+      if (buttonTime>73)
       {
         infobox = INFO;
         stateTimeout=millis();
@@ -515,7 +513,7 @@ void DrawDisplay()
     case SETTING:
       {
         Draw_Setting();
-        if (buttontime>73 && buttontime<2000)
+        if (buttonTime>73 && buttonTime<2000)
         {
           stateTimeout=millis();
           setValue = setValue+0.5;
@@ -546,7 +544,7 @@ BLYNK_WRITE(V5)
 }
 BLYNK_WRITE(V6)
 {
-  setfloorTemp = param.asFloat();
+  setFloorTemp = param.asFloat();
   MainTask();
 }
 BLYNK_WRITE(V11)
@@ -564,8 +562,8 @@ void MainTask()
 {
   unsigned long tic = millis();
   GetWaterTemp();
-  ReadTransmitter();
   ReadBME280();
+  ReadTransmitter();
   ManageHeating();
   Draw_RoomTemp();
   terminal.println("Main task time:");
@@ -582,13 +580,12 @@ void setup() {
   digitalWrite(RELAYPIN3, 0);
 
   //timer.setInterval(BUTIMER,ButtonCheck);
-  //timer.setInterval(DISPTIMER,DrawDisplay);
   timer.setInterval(MAINTIMER,MainTask);
   
   Serial.begin(115200);
   delay(100);
   Wire.begin(SDA,SCL);
-  Wire.setClock(100000);
+  Wire.setClock(400000);
   delay(100);
   bme.begin();
   delay(100);
@@ -604,8 +601,8 @@ void setup() {
   delay(100);
   Encoder.writeCounter((int32_t)180); /* Reset the counter value */
   Encoder.writeMax((int32_t)255); /* Set the maximum  */
-  Encoder.writeMin((int32_t) 180); /* Set the minimum threshold */
-  Encoder.writeStep((int32_t)5); /* Set the step to 1*/
+  Encoder.writeMin((int32_t)180); /* Set the minimum  */
+  Encoder.writeStep((int32_t)5); /* Set the step to 5 */
   Encoder.writeInterruptConfig(0x00); /* Disable all the interrupt */
   Encoder.writeAntibouncingPeriod(20);  /* Set an anti-bouncing of 200ms */
   Encoder.writeDoublePushPeriod(50);  /*Set a period for the double push of 500ms*/
@@ -634,7 +631,7 @@ void setup() {
   Blynk.virtualWrite(V9, radiatorON); 
 
   MainTask();
-  firstrun = 0;
+  firstRun = 0;
 }
 
 void loop() {
