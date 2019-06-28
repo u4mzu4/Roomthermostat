@@ -120,7 +120,7 @@ void ReadBME280()
   if (setControlBase == 1)
   {
     actualTemperature = bme.readTemperature();
-    if (actualTemperature < 1.0) || actualTemperature > 100.0) {
+    if (actualTemperature < 1.0 || actualTemperature > 100.0) {
       actualTemperature = lastvalidTemperature;
     }
     else {
@@ -549,7 +549,7 @@ BLYNK_WRITE(V6)
 }
 BLYNK_WRITE(V11)
 {
-  setfloorHyst = param.asFloat();
+  setFloorHyst = param.asFloat();
   MainTask();
 }
 BLYNK_WRITE(V12)
