@@ -273,6 +273,7 @@ void ReadTransmitter()
   static float lastvalidtransTemp;
 
   webclient.begin(host);
+  webclient.setConnectTimeout(500);
   if(webclient.GET() == HTTP_CODE_OK) 
   {
     transData = webclient.getString().toFloat();
