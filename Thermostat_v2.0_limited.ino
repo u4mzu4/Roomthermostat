@@ -16,6 +16,7 @@
 #include <BlynkSimpleEsp32_SSL.h>
 #include <HTTPClient.h>
 #include <i2cEncoderLibV2.h>
+#include <icons.h>
 
 //Enum
 enum DISPLAY_SM {
@@ -67,15 +68,14 @@ bool floorON = 0;
 bool radiatorON = 0;
 bool heatingON = 1;
 
-const char* ssid      = "";
-const char* password  = "";
+const char* ssid      = "DarpAsusNet_2.4";
+const char* password  = "andrew243";
 const char* host      = "http://192.168.178.53/"; //Temperature transmitter
-const char* auth = ""; //Bylink auth
+const char* auth = "08d1012dc20747899e929ef8a44a7486"; //Bylink auth
 
 //Init services
 strDateTime dateTime;
 Adafruit_BME280 bme;
-//U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0,U8X8_PIN_NONE,SCL,SDA);
 U8G2_SSD1309_128X64_NONAME2_F_HW_I2C u8g2(U8G2_R0,U8X8_PIN_NONE,SCL,SDA);
 NTPtime NTPhu("hu.pool.ntp.org");   // Choose server pool as required
 BlynkTimer timer;
@@ -149,17 +149,54 @@ void ReadBME280()
   Blynk.virtualWrite(V4, actualPressure);
 }
 
+void ButtonCheck()
+{
+  static unsigned long stateStartTime;
+  static DISPLAY_SM displaybox = INIT;
+  
+  if (Encoder.updateStatus()) {
+    if (Encoder.readStatus(PUSHP)){
+      displaybox = INFO;
+      stateStartTime = millis();
+    }
+  }
+  switch (displaybox)
+  {
+    case INIT:
+    {
+      displaybox = MAIN;
+      break;
+    }
+    case MAIN:
+    {
+      break;
+    }
+    case INFO:
+    {
+      Draw_Info();
+      if (millis()-stateStartTime > TIMEOUT)
+      {
+        Encoder.writeLEDR(0x00);
+        Encoder.writeLEDG(0x00);
+        Draw_RoomTemp();
+        displaybox = MAIN;
+      }
+      break;
+    }
+  }
+}
+
 void Draw_RoomTemp()
 {
-  char temperatureString[7];
+  char temperatureString[8];
 
   dtostrf(actualTemperature, 4, 1, temperatureString);
   strcat(temperatureString, "°C");
   //Serial.println(temperatureString);
   //Serial.println();
   u8g2.clearBuffer();          // clear the internal memory
-  u8g2.setFont(u8g2_font_logisoso38_tf); // choose a suitable font
-  u8g2.drawUTF8(0,44,temperatureString);  // write temperature
+  u8g2.setFont(u8g2_font_logisoso34_tf); // choose a suitable font
+  u8g2.drawUTF8(8,42,temperatureString);  // write temperature
   if (radiatorON)
   {
     u8g2.drawDisc(10, 55, 8, U8G2_DRAW_ALL);  // virtual LED1
@@ -229,11 +266,11 @@ void Draw_Info()
   char watertempString[8];
   static char dateChar[13];
   static char timeChar[11];
-  static byte lastrefresh;
+  static byte lastRefresh;
   bool validdate;
 
   validdate=RefreshDateTime();
-  if (lastrefresh == dateTime.second)
+  if (lastRefresh == dateTime.second)
   {
     return;
   }
@@ -251,7 +288,9 @@ void Draw_Info()
   strcat(pressureString, " Pa");
   dtostrf(waterTemperature, 4, 1, watertempString);
   strcat(watertempString, "°C");
-  
+
+  Encoder.writeLEDR(0x77);
+  Encoder.writeLEDG(0xD7);
   u8g2.clearBuffer();          // clear the internal memory
   u8g2.setFont(u8g2_font_t0_12_tf); // choose a suitable font
   u8g2.drawUTF8(0,10,dateChar);  // write date
@@ -265,7 +304,7 @@ void Draw_Info()
   u8g2.drawUTF8(0,50,"Watertemp:");  // write watertemp
   u8g2.drawUTF8(65,50,watertempString); // write watertemp
   u8g2.sendBuffer();          // transfer internal memory to the display
-  lastrefresh == dateTime.second;
+  lastRefresh == dateTime.second;
 }
 
 void ReadTransmitter() 
@@ -580,7 +619,7 @@ void setup() {
   pinMode(RELAYPIN3, OUTPUT);
   digitalWrite(RELAYPIN3, 0);
 
-  //timer.setInterval(BUTIMER,ButtonCheck);
+  timer.setInterval(BUTIMER,ButtonCheck);
   timer.setInterval(MAINTIMER,MainTask);
   
   Serial.begin(115200);
