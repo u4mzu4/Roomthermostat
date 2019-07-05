@@ -37,6 +37,19 @@ enum HEAT_SM {
   JOKER       = 9
   };
 
+enum SETTING_SM {
+  RADIATOR  = 0,
+  FLOOR     = 1,
+  HOLIDAY   = 2,
+  SOFA      = 3,
+  CHILD     = 4,
+  HYST      = 5,
+  THERMO    = 6,
+  HYST_SET  = 7,
+  THERMO_SET= 8,
+  RESERVED  = 9
+  };
+
 
 //Defines
 #define RELAYPIN1 32
@@ -57,7 +70,7 @@ float actualHumidity;
 float actualPressure;
 float transData;
 float setValue = 22.0;
-float setFloorTemp = 33.0;
+float setFloorTemp = 31.0;
 float setFloorHyst = 8.0;
 float waterTemperature;
 int setControlBase = 2;
@@ -68,10 +81,10 @@ bool floorON = 0;
 bool radiatorON = 0;
 bool heatingON = 1;
 
-const char* ssid      = "";
-const char* password  = "";
+const char* ssid      = "DarpAsusNet_2.4";
+const char* password  = "andrew243";
 const char* host      = "http://192.168.178.53/"; //Temperature transmitter
-const char* auth = ""; //Bylink auth
+const char* auth = "08d1012dc20747899e929ef8a44a7486"; //Bylink auth
 
 //Init services
 strDateTime dateTime;
@@ -152,23 +165,29 @@ void ReadBME280()
 void ButtonCheck()
 {
   static unsigned long stateStartTime;
-  static DISPLAY_SM displaybox = INIT;
+  static DISPLAY_SM displayBox = INIT;
+  static bool newSettings = 1;
+  static bool backToMain;
   
-  if (Encoder.updateStatus()) {
-    if (Encoder.readStatus(PUSHP)){
-      displaybox = INFO;
-      stateStartTime = millis();
-    }
-  }
-  switch (displaybox)
+  switch (displayBox)
   {
     case INIT:
     {
-      displaybox = MAIN;
+      displayBox = MAIN;
       break;
     }
     case MAIN:
     {
+      if (Encoder.updateStatus()) {
+        if (Encoder.readStatus(PUSHD)){
+          displayBox = SETTING;
+          stateStartTime = millis();
+        }
+        else if (Encoder.readStatus(PUSHP)){
+          displayBox = INFO;
+          stateStartTime = millis();
+        }
+      }
       break;
     }
     case INFO:
@@ -178,8 +197,24 @@ void ButtonCheck()
       {
         Encoder.writeLEDR(0x00);
         Encoder.writeLEDG(0x00);
+        Encoder.updateStatus();
         Draw_RoomTemp();
-        displaybox = MAIN;
+        displayBox = MAIN;
+      }
+      break;
+    }
+    case SETTING:
+    {
+      backToMain = Draw_Setting(newSettings);
+      newSettings = 0;
+      if (backToMain)
+      {
+        Encoder.writeLEDR(0x00);
+        Encoder.writeLEDB(0x00);
+        Encoder.updateStatus();
+        Draw_RoomTemp();
+        displayBox = MAIN;
+        newSettings = 1;
       }
       break;
     }
@@ -224,28 +259,187 @@ void Draw_RoomTemp()
   u8g2.sendBuffer();          // transfer internal memory to the display
 }
 
-void Draw_Setting()
-{
-  char temperatureString[8];
-  char setValueString[8];
-  
-  dtostrf(actualTemperature, 4, 1, temperatureString);
-  strcat(temperatureString, "°C");
-  dtostrf(setValue, 4, 1, setValueString);
-  strcat(setValueString, "°C");
+void Draw_Bitmap (int posx,int posy,int width, int height,unsigned char* varname)
+{ 
+  u8g2.clearBuffer(); 
+  u8g2.drawXBM(posx, posy, width, height, varname); 
+  u8g2.sendBuffer();
+}
 
-  u8g2.clearBuffer();          // clear the internal memory
-  u8g2.setFont(u8g2_font_t0_12_tf); // choose a suitable font
-  u8g2.drawUTF8(0,10,"Set:");  // write temperature
-  u8g2.setFont(u8g2_font_logisoso30_tf); // choose a suitable font
-  u8g2.drawUTF8(20,40,setValueString); // write temperature
-  u8g2.drawLine(0, 42, 127, 42);
-  u8g2.setFont(u8g2_font_t0_12_tf); // choose a suitable font
-  u8g2.drawUTF8(0,54,"Actual:");  // write watertemp
-  u8g2.setFont(u8g2_font_helvB18_tf); // choose a suitable font
-  u8g2.drawUTF8(45,64,temperatureString); // write watertemp
+bool Draw_Setting(bool smReset)
+{
+  static SETTING_SM settingState = RADIATOR;
+  bool leaveMenu = 0;
+  static SETTING_SM prevState;
+  char actualString[8];
+  char setString[8];
+  static unsigned long stateEnterTime;
+  static float menuValue;
   
-  u8g2.sendBuffer();          // transfer internal memory to the display
+  
+  if (smReset)
+  {
+    settingState = RADIATOR;
+    stateEnterTime = millis();
+  }
+  if (millis()-stateEnterTime > 2*TIMEOUT)
+  {
+    leaveMenu = 1;
+  }
+  switch (settingState)
+  {
+    case RADIATOR:
+    {
+      Draw_Bitmap(32,0,radiator_width, radiator_height,radiator_bits);
+      if (Encoder.updateStatus()) {
+        stateEnterTime = millis();
+        if (Encoder.readStatus(RINC)){
+          settingState = FLOOR;
+        }
+        if (Encoder.readStatus(PUSHP)){
+          settingState = CHILD;
+        }
+      }
+      break;
+    }
+    case FLOOR:
+    {
+      Draw_Bitmap(32,0,floor_width, floor_height,floor_bits);
+      if (Encoder.updateStatus()) {
+        stateEnterTime = millis();
+        if (Encoder.readStatus(RDEC)){
+          settingState = RADIATOR;
+        }
+        if (Encoder.readStatus(RINC)){
+          settingState = HOLIDAY;
+        }
+        if (Encoder.readStatus(PUSHP)){
+          settingState = HYST;
+        }
+      }
+      break;
+    }
+    case HOLIDAY:
+    {
+      Draw_Bitmap(32,0,holiday_width, holiday_height,holiday_bits);
+      if (Encoder.updateStatus()) {
+        stateEnterTime = millis();
+        if (Encoder.readStatus(RDEC)){
+          settingState = FLOOR;
+        }
+        if (Encoder.readStatus(PUSHP)){
+          setValue = 20.0;
+          setFloorTemp = 31.0;
+          setFloorHyst = 9.0;
+          Blynk.virtualWrite(V5, setValue);
+          Blynk.virtualWrite(V6, setFloorTemp);
+          Blynk.virtualWrite(V11, setFloorHyst);
+          leaveMenu = 1;
+        }
+      }
+      break;
+    }
+    case CHILD:
+    {
+      Draw_Bitmap(32,0,childroom_width, childroom_height,childroom_bits);
+      if (Encoder.updateStatus()) {
+        stateEnterTime = millis();
+        if (Encoder.readStatus(RINC)){
+          settingState = SOFA;
+        }
+        if (Encoder.readStatus(PUSHP)){
+          setControlBase = 2;
+          Blynk.virtualWrite(V12, setControlBase);
+          settingState = THERMO;
+          prevState = CHILD;
+        }
+      }
+      break;
+    }
+    case SOFA:
+    {
+      Draw_Bitmap(32,0,sofa_width, sofa_height,sofa_bits);
+      if (Encoder.updateStatus()) {
+        stateEnterTime = millis();
+        if (Encoder.readStatus(RDEC)){
+          settingState = CHILD;
+        }
+        if (Encoder.readStatus(PUSHP)){
+          setControlBase = 1;
+          Blynk.virtualWrite(V12, setControlBase);
+          settingState = THERMO;
+          prevState = SOFA;
+        }
+      }
+      break;
+    }
+    case HYST:
+    {
+      Draw_Bitmap(0,0,hysteresis_width, hysteresis_height,hysteresis_bits);
+      if (Encoder.updateStatus()) {
+        stateEnterTime = millis();
+        if (Encoder.readStatus(RINC)){
+          settingState = THERMO;
+          prevState = HYST;
+        }
+        if (Encoder.readStatus(PUSHP)){
+          settingState = HYST_SET;
+          prevState = HYST;
+        }
+      }
+      break;
+    }
+    case THERMO:
+    {
+      Draw_Bitmap(32,0,thermometer_width, thermometer_height,thermometer_bits);
+      if (Encoder.updateStatus()) {
+        stateEnterTime = millis();
+        if (Encoder.readStatus(RDEC) && prevState==HYST){
+          settingState = HYST;
+        }
+        if (Encoder.readStatus(PUSHP)){
+          settingState = THERMO_SET;
+        }
+      }
+      break;
+    }
+    case HYST_SET:
+    { 
+      if (prevState == HYST)
+      {
+        Encoder.writeCounter((int32_t)setFloorHyst);
+        Encoder.writeMax((int32_t)10); /* Set the maximum  */
+        Encoder.writeMin((int32_t) 1); /* Set the minimum threshold */
+        Encoder.writeStep((int32_t)1); 
+        prevState = HYST_SET;
+      }
+      dtostrf(setFloorHyst, 2, 0, actualString);
+      strcat(actualString, "°C");
+      dtostrf(menuValue, 2, 0, setString);
+      u8g2.clearBuffer();
+      u8g2.drawXBM(0,0,hysteresis_width,hysteresis_height,hysteresis_bits);
+      u8g2.setFont(u8g2_font_t0_12_tf);
+      u8g2.drawUTF8(0,12,"Set:");
+      u8g2.setFont(u8g2_font_helvB18_tf); // choose a suitable font
+      u8g2.drawUTF8(0,40,setString);
+      u8g2.setFont(u8g2_font_t0_12_tf);
+      u8g2.drawUTF8(78,50,"Actual:");
+      u8g2.drawUTF8(78,64,actualString);
+      u8g2.sendBuffer();
+      if (Encoder.updateStatus()) {
+        stateEnterTime = millis();
+        if (Encoder.readStatus(PUSHP)){
+          setFloorHyst = menuValue;
+          Blynk.virtualWrite(V11, setFloorHyst);
+          leaveMenu = 1;
+        }
+        if (Encoder.readStatus(RINC)||Encoder.readStatus(RDEC)){
+          menuValue = Encoder.readCounterInt();
+        }
+      }
+    }
+  }
+  return leaveMenu;
 }
 
 bool RefreshDateTime()
@@ -512,66 +706,6 @@ void ManageHeating()
   }
 }
 
-void DrawDisplay()
-{
-  static DISPLAY_SM infobox = INIT;
-  static unsigned long stateTimeout;
-  
-  switch (infobox)
-  {
-    case INIT:
-    {
-      infobox = MAIN;
-      break;
-    }
-    case MAIN:
-    {
-      Draw_RoomTemp();
-      if (buttonTime>2000)
-      {
-        infobox = SETTING;
-        stateTimeout=millis();
-        break;
-      }
-      if (buttonTime>73)
-      {
-        infobox = INFO;
-        stateTimeout=millis();
-        break;
-      }
-      break;
-    }
-    case INFO:
-    {
-      Draw_Info();
-      if (millis()-stateTimeout > TIMEOUT)
-      {
-        infobox = MAIN;
-      }
-      break;
-    }
-    case SETTING:
-      {
-        Draw_Setting();
-        if (buttonTime>73 && buttonTime<2000)
-        {
-          stateTimeout=millis();
-          setValue = setValue+0.5;
-          if (setValue>25.0)
-          {
-            setValue = 18.0;
-          }
-        }
-        if (millis()-stateTimeout > TIMEOUT)
-        {
-          Blynk.virtualWrite(V5, setValue);
-          infobox = MAIN;
-        }
-        break;
-      }
-  }
-}
-
 BLYNK_WRITE(V2)
 {
   heatingON = param.asInt();
@@ -639,6 +773,9 @@ void setup() {
   delay(100);
   Encoder.begin(INT_DATA | WRAP_DISABLE | DIRE_RIGHT | IPUP_DISABLE | RMOD_X1 | RGB_ENCODER);
   delay(100);
+  Encoder.writeInterruptConfig(0x00); /* Disable all the interrupt */
+  Encoder.writeAntibouncingPeriod(20);  /* Set an anti-bouncing of 200ms */
+  Encoder.writeDoublePushPeriod(50);  /*Set a period for the double push of 500ms*/
 
   WiFi.mode(WIFI_STA);
   WiFi.begin (ssid, password);
