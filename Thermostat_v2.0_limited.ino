@@ -639,13 +639,6 @@ void setup() {
   delay(100);
   Encoder.begin(INT_DATA | WRAP_DISABLE | DIRE_RIGHT | IPUP_DISABLE | RMOD_X1 | RGB_ENCODER);
   delay(100);
-  Encoder.writeCounter((int32_t)180); /* Reset the counter value */
-  Encoder.writeMax((int32_t)255); /* Set the maximum  */
-  Encoder.writeMin((int32_t)180); /* Set the minimum  */
-  Encoder.writeStep((int32_t)5); /* Set the step to 5 */
-  Encoder.writeInterruptConfig(0x00); /* Disable all the interrupt */
-  Encoder.writeAntibouncingPeriod(20);  /* Set an anti-bouncing of 200ms */
-  Encoder.writeDoublePushPeriod(50);  /*Set a period for the double push of 500ms*/
 
   WiFi.mode(WIFI_STA);
   WiFi.begin (ssid, password);
