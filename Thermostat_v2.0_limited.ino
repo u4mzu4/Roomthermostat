@@ -167,7 +167,6 @@ void ButtonCheck()
   static unsigned long stateStartTime;
   static DISPLAY_SM displayBox = INIT;
   static bool newSettings = 1;
-  static bool backToMain;
   
   switch (displayBox)
   {
@@ -205,9 +204,7 @@ void ButtonCheck()
     }
     case SETTING:
     {
-      backToMain = Draw_Setting(newSettings);
-      newSettings = 0;
-      if (backToMain)
+      if (Draw_Setting(newSettings))
       {
         Encoder.writeLEDR(0x00);
         Encoder.writeLEDB(0x00);
@@ -215,6 +212,10 @@ void ButtonCheck()
         Draw_RoomTemp();
         displayBox = MAIN;
         newSettings = 1;
+      }
+      else
+      {
+        newSettings = 0;
       }
       break;
     }
@@ -274,7 +275,6 @@ bool Draw_Setting(bool smReset)
   char actualString[8];
   char setString[8];
   static unsigned long stateEnterTime;
-  static float menuValue;
   
   
   if (smReset)
@@ -415,7 +415,7 @@ bool Draw_Setting(bool smReset)
       }
       dtostrf(setFloorHyst, 2, 0, actualString);
       strcat(actualString, "°C");
-      dtostrf(menuValue, 2, 0, setString);
+      dtostrf(Encoder.readCounterInt(), 2, 0, setString);
       u8g2.clearBuffer();
       u8g2.drawXBM(0,0,hysteresis_width,hysteresis_height,hysteresis_bits);
       u8g2.setFont(u8g2_font_t0_12_tf);
@@ -429,12 +429,9 @@ bool Draw_Setting(bool smReset)
       if (Encoder.updateStatus()) {
         stateEnterTime = millis();
         if (Encoder.readStatus(PUSHP)){
-          setFloorHyst = menuValue;
+          setFloorHyst = Encoder.readCounterInt();
           Blynk.virtualWrite(V11, setFloorHyst);
           leaveMenu = 1;
-        }
-        if (Encoder.readStatus(RINC)||Encoder.readStatus(RDEC)){
-          menuValue = Encoder.readCounterInt();
         }
       }
     }
