@@ -272,7 +272,7 @@ bool Draw_Setting(bool smReset)
   static SETTING_SM settingState = RADIATOR;
   bool leaveMenu = 0;
   static SETTING_SM prevState;
-  char actualString[8];
+  static char actualString[8];
   char setString[8];
   static unsigned long stateEnterTime;
   
@@ -407,14 +407,14 @@ bool Draw_Setting(bool smReset)
     { 
       if (prevState == HYST)
       {
+        dtostrf(setFloorHyst, 2, 0, actualString);
+        strcat(actualString, "°C");
         Encoder.writeCounter((int32_t)setFloorHyst);
         Encoder.writeMax((int32_t)10); /* Set the maximum  */
         Encoder.writeMin((int32_t) 1); /* Set the minimum threshold */
         Encoder.writeStep((int32_t)1); 
         prevState = HYST_SET;
       }
-      dtostrf(setFloorHyst, 2, 0, actualString);
-      strcat(actualString, "°C");
       dtostrf(Encoder.readCounterInt(), 2, 0, setString);
       u8g2.clearBuffer();
       u8g2.drawXBM(0,0,hysteresis_width,hysteresis_height,hysteresis_bits);
@@ -434,6 +434,72 @@ bool Draw_Setting(bool smReset)
           leaveMenu = 1;
         }
       }
+      break;
+    }
+    case THERMO_SET:
+    {
+      static int posCounter=33;
+      static bool initSet = 1;
+      
+      if ((prevState == HYST) && initSet)
+      {
+        dtostrf(setFloorTemp, 4, 1, actualString);
+        strcat(actualString, "°C");
+        Encoder.writeCounter((int32_t)setFloorTemp*10);
+        Encoder.writeMax((int32_t)400); /* Set the maximum  */
+        Encoder.writeMin((int32_t)180); /* Set the minimum threshold */
+        Encoder.writeStep((int32_t)10); 
+        initSet = 0;
+      }
+      if ((prevState == CHILD || prevState == SOFA) && initSet)
+      {
+        dtostrf(setValue, 4, 1, actualString);
+        strcat(actualString, "°C");
+        Encoder.writeCounter((int32_t)setValue*10);
+        Encoder.writeMax((int32_t)255); /* Set the maximum  */
+        Encoder.writeMin((int32_t)180); /* Set the minimum threshold */
+        Encoder.writeStep((int32_t)5);
+        initSet = 0;
+      }
+      while (posCounter>0)
+      {
+        posCounter--;
+        Draw_Bitmap(posCounter,0,thermometer_width, thermometer_height,thermometer_bits);
+      }
+      dtostrf(Encoder.readCounterInt()/10.0, 4, 1, setString);
+      strcat(setString, "°C");
+      u8g2.clearBuffer();
+      u8g2.drawXBM(0,0,thermometer_width,thermometer_height,thermometer_bits);
+      u8g2.setFont(u8g2_font_t0_12_tf);
+      u8g2.drawUTF8(60,12,"Set:");
+      u8g2.setFont(u8g2_font_logisoso18_tf); // choose a suitable font
+      u8g2.drawUTF8(60,35,setString);
+      u8g2.setFont(u8g2_font_t0_12_tf);
+      u8g2.drawUTF8(60,52,"Actual:");
+      u8g2.drawUTF8(60,64,actualString);
+      u8g2.sendBuffer();
+      if (Encoder.updateStatus()) {
+        stateEnterTime = millis();
+        if (Encoder.readStatus(PUSHP)){
+          leaveMenu = 1;
+          if (prevState == HYST)
+          {
+            setFloorTemp = Encoder.readCounterInt()/10.0;
+            Blynk.virtualWrite(V6, setFloorTemp);
+          }
+          else
+          {
+            setValue = Encoder.readCounterInt()/10.0;
+            Blynk.virtualWrite(V5, setValue);
+          }
+        }
+      }
+      if (leaveMenu)
+      {
+        posCounter = 33;
+        initSet = 1;
+      }
+      break;
     }
   }
   return leaveMenu;
