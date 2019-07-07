@@ -418,7 +418,7 @@ bool Draw_Setting(bool smReset)
       rotaryPosition = Encoder.readCounterInt();
       dtostrf(rotaryPosition, 2, 0, setString);
       Encoder.writeLEDB((rotaryPosition-10)*25);
-      Encoder.writeLEDR((10-rotaryPosition)*25);
+      Encoder.writeLEDR((11-rotaryPosition)*25);
       u8g2.clearBuffer();
       u8g2.drawXBM(0,0,hysteresis_width,hysteresis_height,hysteresis_bits);
       u8g2.setFont(u8g2_font_t0_12_tf);
