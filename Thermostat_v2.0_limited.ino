@@ -270,12 +270,12 @@ void Draw_Bitmap (int posx,int posy,int width, int height,unsigned char* varname
 bool Draw_Setting(bool smReset)
 {
   static SETTING_SM settingState = RADIATOR;
-  bool leaveMenu = 0;
   static SETTING_SM prevState;
   static char actualString[8];
-  char setString[8];
   static unsigned long stateEnterTime;
-  
+  char setString[8];
+  bool leaveMenu = 0;
+  int rotaryPosition;
   
   if (smReset)
   {
@@ -415,7 +415,10 @@ bool Draw_Setting(bool smReset)
         Encoder.writeStep((int32_t)1); 
         prevState = HYST_SET;
       }
-      dtostrf(Encoder.readCounterInt(), 2, 0, setString);
+      rotaryPosition = Encoder.readCounterInt();
+      dtostrf(rotaryPosition, 2, 0, setString);
+      Encoder.writeLEDB((rotaryPosition-10)*25);
+      Encoder.writeLEDR((10-rotaryPosition)*25);
       u8g2.clearBuffer();
       u8g2.drawXBM(0,0,hysteresis_width,hysteresis_height,hysteresis_bits);
       u8g2.setFont(u8g2_font_t0_12_tf);
@@ -429,7 +432,7 @@ bool Draw_Setting(bool smReset)
       if (Encoder.updateStatus()) {
         stateEnterTime = millis();
         if (Encoder.readStatus(PUSHP)){
-          setFloorHyst = Encoder.readCounterInt();
+          setFloorHyst = rotaryPosition;
           Blynk.virtualWrite(V11, setFloorHyst);
           leaveMenu = 1;
         }
@@ -446,8 +449,8 @@ bool Draw_Setting(bool smReset)
         dtostrf(setFloorTemp, 4, 1, actualString);
         strcat(actualString, "°C");
         Encoder.writeCounter((int32_t)setFloorTemp*10);
-        Encoder.writeMax((int32_t)400); /* Set the maximum  */
-        Encoder.writeMin((int32_t)180); /* Set the minimum threshold */
+        Encoder.writeMax((int32_t)360); /* Set the maximum  */
+        Encoder.writeMin((int32_t)240); /* Set the minimum threshold */
         Encoder.writeStep((int32_t)10); 
         initSet = 0;
       }
@@ -466,8 +469,19 @@ bool Draw_Setting(bool smReset)
         posCounter--;
         Draw_Bitmap(posCounter,0,thermometer_width, thermometer_height,thermometer_bits);
       }
-      dtostrf(Encoder.readCounterInt()/10.0, 4, 1, setString);
+      rotaryPosition = Encoder.readCounterInt();
+      dtostrf(rotaryPosition/10.0, 4, 1, setString);
       strcat(setString, "°C");
+      if (prevState == HYST)
+      {
+      Encoder.writeLEDR((rotaryPosition-240)*2);
+      Encoder.writeLEDB((360-rotaryPosition)*2); 
+      }
+      else
+      {
+      Encoder.writeLEDR((rotaryPosition-180)*3);
+      Encoder.writeLEDB((255-rotaryPosition)*3);        
+      }
       u8g2.clearBuffer();
       u8g2.drawXBM(0,0,thermometer_width,thermometer_height,thermometer_bits);
       u8g2.setFont(u8g2_font_t0_12_tf);
@@ -484,12 +498,12 @@ bool Draw_Setting(bool smReset)
           leaveMenu = 1;
           if (prevState == HYST)
           {
-            setFloorTemp = Encoder.readCounterInt()/10.0;
+            setFloorTemp = rotaryPosition/10.0;
             Blynk.virtualWrite(V6, setFloorTemp);
           }
           else
           {
-            setValue = Encoder.readCounterInt()/10.0;
+            setValue = rotaryPosition/10.0;
             Blynk.virtualWrite(V5, setValue);
           }
         }
