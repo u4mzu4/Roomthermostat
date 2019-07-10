@@ -260,10 +260,21 @@ void Draw_RoomTemp()
   u8g2.sendBuffer();          // transfer internal memory to the display
 }
 
-void Draw_Bitmap (int posx,int posy,int width, int height,unsigned char* varname)
+void Draw_Bitmap (int posx,int posy,int width,int height,unsigned char* varname,byte arrows)
 { 
+  byte mask_right = B00000001;
+  byte mask_left  = B00000010;
+  
   u8g2.clearBuffer(); 
-  u8g2.drawXBM(posx, posy, width, height, varname); 
+  u8g2.drawXBM(posx, posy, width, height, varname);
+  if (arrows & mask_right)
+  {
+    u8g2.drawTriangle(107,16,123,32,107,48);
+  }
+  if (arrows & mask_left)
+  {
+    u8g2.drawTriangle(21,16,5,32,21,48);
+  }
   u8g2.sendBuffer();
 }
 
@@ -290,7 +301,7 @@ bool Draw_Setting(bool smReset)
   {
     case RADIATOR:
     {
-      Draw_Bitmap(32,0,radiator_width, radiator_height,radiator_bits);
+      Draw_Bitmap(32,0,radiator_width, radiator_height,radiator_bits,1);
       if (Encoder.updateStatus()) {
         stateEnterTime = millis();
         if (Encoder.readStatus(RINC)){
@@ -304,7 +315,7 @@ bool Draw_Setting(bool smReset)
     }
     case FLOOR:
     {
-      Draw_Bitmap(32,0,floor_width, floor_height,floor_bits);
+      Draw_Bitmap(32,0,floor_width, floor_height,floor_bits,3);
       if (Encoder.updateStatus()) {
         stateEnterTime = millis();
         if (Encoder.readStatus(RDEC)){
@@ -321,7 +332,7 @@ bool Draw_Setting(bool smReset)
     }
     case HOLIDAY:
     {
-      Draw_Bitmap(32,0,holiday_width, holiday_height,holiday_bits);
+      Draw_Bitmap(32,0,holiday_width, holiday_height,holiday_bits,2);
       if (Encoder.updateStatus()) {
         stateEnterTime = millis();
         if (Encoder.readStatus(RDEC)){
@@ -341,7 +352,7 @@ bool Draw_Setting(bool smReset)
     }
     case CHILD:
     {
-      Draw_Bitmap(32,0,childroom_width, childroom_height,childroom_bits);
+      Draw_Bitmap(32,0,childroom_width, childroom_height,childroom_bits,1);
       if (Encoder.updateStatus()) {
         stateEnterTime = millis();
         if (Encoder.readStatus(RINC)){
@@ -358,7 +369,7 @@ bool Draw_Setting(bool smReset)
     }
     case SOFA:
     {
-      Draw_Bitmap(32,0,sofa_width, sofa_height,sofa_bits);
+      Draw_Bitmap(32,0,sofa_width, sofa_height,sofa_bits,2);
       if (Encoder.updateStatus()) {
         stateEnterTime = millis();
         if (Encoder.readStatus(RDEC)){
@@ -375,7 +386,7 @@ bool Draw_Setting(bool smReset)
     }
     case HYST:
     {
-      Draw_Bitmap(0,0,hysteresis_width, hysteresis_height,hysteresis_bits);
+      Draw_Bitmap(0,0,hysteresis_width, hysteresis_height,hysteresis_bits,1);
       if (Encoder.updateStatus()) {
         stateEnterTime = millis();
         if (Encoder.readStatus(RINC)){
@@ -391,7 +402,14 @@ bool Draw_Setting(bool smReset)
     }
     case THERMO:
     {
-      Draw_Bitmap(32,0,thermometer_width, thermometer_height,thermometer_bits);
+      if (prevState==HYST)
+      {
+        Draw_Bitmap(32,0,thermometer_width, thermometer_height,thermometer_bits,2);
+      }
+      else
+      {
+        Draw_Bitmap(32,0,thermometer_width, thermometer_height,thermometer_bits,0);
+      }
       if (Encoder.updateStatus()) {
         stateEnterTime = millis();
         if (Encoder.readStatus(RDEC) && prevState==HYST){
@@ -467,7 +485,7 @@ bool Draw_Setting(bool smReset)
       while (posCounter>0)
       {
         posCounter--;
-        Draw_Bitmap(posCounter,0,thermometer_width, thermometer_height,thermometer_bits);
+        Draw_Bitmap(posCounter,0,thermometer_width, thermometer_height,thermometer_bits,0);
       }
       rotaryPosition = Encoder.readCounterInt();
       dtostrf(rotaryPosition/10.0, 4, 1, setString);
