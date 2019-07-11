@@ -234,6 +234,7 @@ void Draw_RoomTemp()
   strcat(temperatureString, "°C");
   //Serial.println(temperatureString);
   //Serial.println();
+  u8g2.setContrast(0);
   u8g2.clearBuffer();          // clear the internal memory
   u8g2.setFont(u8g2_font_logisoso34_tf); // choose a suitable font
   u8g2.drawUTF8(8,42,temperatureString);  // write temperature
