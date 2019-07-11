@@ -80,6 +80,7 @@ bool boilerON = 0;
 bool floorON = 0;
 bool radiatorON = 0;
 bool heatingON = 1;
+bool disableMainTask = 0;
 
 const char* ssid      = "DarpAsusNet_2.4";
 const char* password  = "andrew243";
@@ -177,6 +178,7 @@ void ButtonCheck()
     }
     case MAIN:
     {
+      disableMainTask = 0;
       if (Encoder.updateStatus()) {
         if (Encoder.readStatus(PUSHD)){
           displayBox = SETTING;
@@ -191,6 +193,7 @@ void ButtonCheck()
     }
     case INFO:
     {
+      disableMainTask = 1;
       Draw_Info();
       if (millis()-stateStartTime > TIMEOUT)
       {
@@ -204,6 +207,7 @@ void ButtonCheck()
     }
     case SETTING:
     {
+      disableMainTask = 1;
       if (Draw_Setting(newSettings))
       {
         Encoder.writeLEDR(0x00);
@@ -435,8 +439,8 @@ bool Draw_Setting(bool smReset)
       }
       rotaryPosition = Encoder.readCounterInt();
       dtostrf(rotaryPosition, 2, 0, setString);
-      Encoder.writeLEDB((rotaryPosition-10)*25);
-      Encoder.writeLEDR((11-rotaryPosition)*25);
+      Encoder.writeLEDB((rotaryPosition-1)*28);
+      Encoder.writeLEDR((10-rotaryPosition)*28);
       u8g2.clearBuffer();
       u8g2.drawXBM(0,0,hysteresis_width,hysteresis_height,hysteresis_bits);
       u8g2.setFont(u8g2_font_t0_12_tf);
@@ -830,14 +834,17 @@ BLYNK_WRITE(V12)
 void MainTask()
 {
   unsigned long tic = millis();
-  GetWaterTemp();
-  ReadBME280();
-  ReadTransmitter();
-  ManageHeating();
-  Draw_RoomTemp();
-  terminal.println("Main task time:");
-  terminal.println(millis()-tic);
-  terminal.flush();
+  if (!disableMainTask)
+  {
+    GetWaterTemp();
+    ReadBME280();
+    ReadTransmitter();
+    ManageHeating();
+    Draw_RoomTemp();
+    terminal.println("Main task time:");
+    terminal.println(millis()-tic);
+    terminal.flush();
+  }
 }
 
 void setup() {
