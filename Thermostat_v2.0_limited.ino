@@ -65,14 +65,16 @@ enum SETTING_SM {
 #define ENCODER_ADDRESS 0x02
 
 //Global variables
+float waterTemperature;
 float actualTemperature;
 float actualHumidity;
 float actualPressure;
 float transData;
+float bmeTemperature;
 float setValue = 22.0;
 float setFloorTemp = 31.0;
 float setFloorHyst = 8.0;
-float waterTemperature;
+
 int setControlBase = 2;
 int buttonTime = 0;
 bool firstRun =1;
@@ -81,11 +83,6 @@ bool floorON = 0;
 bool radiatorON = 0;
 bool heatingON = 1;
 bool disableMainTask = 0;
-
-const char* ssid      = "";
-const char* password  = "";
-const char* host      = "http://192.168.178.53/"; //Temperature transmitter
-const char* auth = ""; //Bylink auth
 
 //Init services
 strDateTime dateTime;
@@ -131,15 +128,12 @@ void ReadBME280()
   static float lastvalidHumidity;
   static float lastvalidPressure;
 
-  if (setControlBase == 1)
-  {
-    actualTemperature = bme.readTemperature();
-    if (actualTemperature < 1.0 || actualTemperature > 100.0) {
-      actualTemperature = lastvalidTemperature;
-    }
-    else {
-      lastvalidTemperature = actualTemperature;
-    }
+  bmeTemperature = bme.readTemperature();
+  if (bmeTemperature < 1.0 || bmeTemperature > 100.0) {
+      bmeTemperature = lastvalidTemperature;
+  }
+  else {
+      lastvalidTemperature = bmeTemperature;
   }
   actualHumidity = bme.readHumidity();
   actualPressure = bme.readPressure() / 100.0F;
@@ -159,6 +153,7 @@ void ReadBME280()
   else {
     lastvalidHumidity = actualHumidity;
   }
+  Blynk.virtualWrite(V14,bmeTemperature);
   Blynk.virtualWrite(V3, actualHumidity);
   Blynk.virtualWrite(V4, actualPressure);
 }
@@ -625,6 +620,10 @@ void ReadTransmitter()
   if (setControlBase == 2)
   {
     actualTemperature = transData;
+  }
+  else
+  {
+    actualTemperature = bmeTemperature;
   }
   Blynk.virtualWrite(V1, actualTemperature);
   Blynk.virtualWrite(V13, transData);
