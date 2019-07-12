@@ -82,10 +82,10 @@ bool radiatorON = 0;
 bool heatingON = 1;
 bool disableMainTask = 0;
 
-const char* ssid      = "DarpAsusNet_2.4";
-const char* password  = "andrew243";
+const char* ssid      = "";
+const char* password  = "";
 const char* host      = "http://192.168.178.53/"; //Temperature transmitter
-const char* auth = "08d1012dc20747899e929ef8a44a7486"; //Bylink auth
+const char* auth = ""; //Bylink auth
 
 //Init services
 strDateTime dateTime;
