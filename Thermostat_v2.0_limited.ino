@@ -77,7 +77,6 @@ float setFloorHyst = 8.0;
 
 int setControlBase = 2;
 int buttonTime = 0;
-bool firstRun =1;
 bool boilerON = 0;
 bool floorON = 0;
 bool radiatorON = 0;
@@ -129,23 +128,20 @@ void ReadBME280()
   static float lastvalidPressure;
 
   bmeTemperature = bme.readTemperature();
-  if (bmeTemperature < 1.0 || bmeTemperature > 100.0) {
-      bmeTemperature = lastvalidTemperature;
-  }
-  else {
-      lastvalidTemperature = bmeTemperature;
-  }
   actualHumidity = bme.readHumidity();
   actualPressure = bme.readPressure() / 100.0F;
   
+  if (bmeTemperature < 1.0 || bmeTemperature > 100.0) {
+    bmeTemperature = lastvalidTemperature;
+  }
+  else {
+    lastvalidTemperature = bmeTemperature;
+  }
   if (actualPressure > 1086.0 || actualPressure < 870.0) {
     actualPressure = lastvalidPressure;
   }
   else {
     lastvalidPressure = actualPressure;
-  }
-  if (firstRun){
-    lastvalidHumidity = actualHumidity;
   }
   if (actualHumidity > 99.0) {
     actualHumidity = lastvalidHumidity;
@@ -903,7 +899,6 @@ void setup() {
   Blynk.virtualWrite(V9, radiatorON); 
 
   MainTask();
-  firstRun = 0;
 }
 
 void loop() {
