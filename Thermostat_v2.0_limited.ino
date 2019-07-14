@@ -100,6 +100,7 @@ void GetWaterTemp()
 {
   unsigned short tempRaw;
   static float lastvalidTemperature;
+  static int ds18b20Errorcounter = 0;
   
   sensor.requestTemperaturesByAddress(sensorDeviceAddress);
   tempRaw = sensor.getTemp(sensorDeviceAddress);
@@ -112,11 +113,19 @@ void GetWaterTemp()
   if (waterTemperature > 84.0) 
   {
     waterTemperature = lastvalidTemperature;
+    ds18b20Errorcounter++;
   }
   else 
   {
     lastvalidTemperature = waterTemperature;
+    ds18b20Errorcounter = 0;
   }
+  if (ds18b20Errorcounter > 4)
+  {
+    Encoder.writeLEDR(0xFF);
+    terminal.println("DS18B20 error");
+  }
+  
   Blynk.virtualWrite(V10, waterTemperature);
   //Serial.println(waterTemperature);
 }
@@ -126,16 +135,19 @@ void ReadBME280()
   static float lastvalidTemperature;
   static float lastvalidHumidity;
   static float lastvalidPressure;
-
+  static int bmeErrorcounter = 0;
+  
   bmeTemperature = bme.readTemperature();
   actualHumidity = bme.readHumidity();
   actualPressure = bme.readPressure() / 100.0F;
   
   if (bmeTemperature < 1.0 || bmeTemperature > 100.0) {
     bmeTemperature = lastvalidTemperature;
+    bmeErrorcounter++;
   }
   else {
     lastvalidTemperature = bmeTemperature;
+    bmeErrorcounter = 0;
   }
   if (actualPressure > 1086.0 || actualPressure < 870.0) {
     actualPressure = lastvalidPressure;
@@ -149,6 +161,14 @@ void ReadBME280()
   else {
     lastvalidHumidity = actualHumidity;
   }
+  if (bmeErrorcounter > 4)
+  {
+    setControlBase = 2;
+    Blynk.virtualWrite(V12, setControlBase);
+    Encoder.writeLEDR(0xFF);
+    terminal.println("BME280 error");
+  }
+  
   Blynk.virtualWrite(V14,bmeTemperature);
   Blynk.virtualWrite(V3, actualHumidity);
   Blynk.virtualWrite(V4, actualPressure);
@@ -595,6 +615,7 @@ void Draw_Info()
 void ReadTransmitter() 
 {
   static float lastvalidtransTemp;
+  static int transmErrorcounter = 0;
 
   webclient.begin(host);
   webclient.setConnectTimeout(500);
@@ -602,16 +623,26 @@ void ReadTransmitter()
   {
     transData = webclient.getString().toFloat();
   }
+  else
+  {
+    transData = 0.0;
+  }
   webclient.end();
-
-  if (transData < 10.0) {
+  if ((transData < 10.0)||transData > 84.0)  {
     transData = lastvalidtransTemp;
-    //setControlBase = 1;
-    return;
+    transmErrorcounter++;
   }
   else
   {
     lastvalidtransTemp = transData;
+    transmErrorcounter = 0;
+  }
+  if (transmErrorcounter > 4)
+  {
+    setControlBase = 1;
+    Blynk.virtualWrite(V12, setControlBase);
+    Encoder.writeLEDR(0xFF);
+    terminal.println("Transmitter error");
   }
   if (setControlBase == 2)
   {
