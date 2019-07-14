@@ -623,19 +623,21 @@ void ReadTransmitter()
   {
     transData = webclient.getString().toFloat();
   }
+  else
+  {
+    transData = 0.0;
+  }
   webclient.end();
-
-  if ((transData < 10.0)||transData>84.0)  {
+  if ((transData < 10.0)||transData > 84.0)  {
     transData = lastvalidtransTemp;
     transmErrorcounter++;
-    return;
   }
   else
   {
     lastvalidtransTemp = transData;
     transmErrorcounter = 0;
   }
-    if (transmErrorcounter > 4)
+  if (transmErrorcounter > 4)
   {
     setControlBase = 1;
     Blynk.virtualWrite(V12, setControlBase);
