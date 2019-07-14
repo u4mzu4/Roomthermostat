@@ -123,6 +123,7 @@ void GetWaterTemp()
   if (ds18b20Errorcounter > 4)
   {
     Encoder.writeLEDR(0xFF);
+    terminal.println("DS18B20 error");
   }
   
   Blynk.virtualWrite(V10, waterTemperature);
@@ -165,6 +166,7 @@ void ReadBME280()
     setControlBase = 2;
     Blynk.virtualWrite(V12, setControlBase);
     Encoder.writeLEDR(0xFF);
+    terminal.println("BME280 error");
   }
   
   Blynk.virtualWrite(V14,bmeTemperature);
@@ -638,6 +640,7 @@ void ReadTransmitter()
     setControlBase = 1;
     Blynk.virtualWrite(V12, setControlBase);
     Encoder.writeLEDR(0xFF);
+    terminal.println("Transmitter error");
   }
   if (setControlBase == 2)
   {
