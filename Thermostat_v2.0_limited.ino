@@ -48,7 +48,7 @@ enum SETTING_SM {
   THERMO    = 6,
   HYST_SET  = 7,
   THERMO_SET= 8,
-  RESERVED  = 9
+  R3S3RV3D  = 9
   };
 
 
