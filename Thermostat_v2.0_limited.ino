@@ -4,6 +4,7 @@
   2.24" OLED SSD1309
   I2C rotary (https://github.com/Fattoresaimon/I2CEncoderV2)
   Blynk service
+  
 */
 
 //Includes
@@ -56,6 +57,8 @@ enum SETTING_SM {
 #define RELAYPIN1 32
 #define RELAYPIN2 33
 #define WATERPIN  17
+#define OTPIN_IN 36
+#define OTPIN_OUT 4
 #define TIMEOUT   5000  //5 sec
 #define AFTERCIRCTIME 300000 //5min
 #define BUTIMER   61
@@ -63,8 +66,6 @@ enum SETTING_SM {
 #define RADIATOR_HYST 0.1
 #define DS18B20_RESOLUTION 11
 #define ENCODER_ADDRESS 0x02
-#define OTPIN_IN 14
-#define OTPIN_OUT 4
 #define RADIATOR_TEMP 60.0
 #define FLOOR_TEMP 45.0
 
