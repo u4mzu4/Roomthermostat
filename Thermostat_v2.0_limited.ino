@@ -17,6 +17,7 @@
 #include <HTTPClient.h>
 #include <i2cEncoderLibV2.h>
 #include <icons.h>
+#include <OpenTherm.h>
 
 //Enum
 enum DISPLAY_SM {
@@ -52,9 +53,8 @@ enum SETTING_SM {
 
 
 //Defines
-#define RELAYPIN1 32
 #define RELAYPIN2 33
-#define RELAYPIN3 4
+#define RELAYPIN3 32
 #define WATERPIN  17
 #define TIMEOUT   5000  //5 sec
 #define AFTERCIRCTIME 300000 //5min
@@ -63,6 +63,8 @@ enum SETTING_SM {
 #define RADIATOR_HYST 0.1
 #define DS18B20_RESOLUTION 11
 #define ENCODER_ADDRESS 0x02
+#define inPin 14
+#define outPin 4
 
 //Global variables
 float waterTemperature;
@@ -95,6 +97,7 @@ OneWire oneWire(WATERPIN);
 DallasTemperature sensor(&oneWire);
 DeviceAddress sensorDeviceAddress;
 i2cEncoderLibV2 Encoder(ENCODER_ADDRESS);
+OpenTherm ot(inPin, outPin);
 
 void GetWaterTemp()
 {
@@ -671,7 +674,8 @@ void ManageHeating()
     }
     else
     {
-      digitalWrite(RELAYPIN1, 0);
+      //digitalWrite(RELAYPIN1, 0);
+      ot.setBoilerTemperature(0.0);
       digitalWrite(RELAYPIN2, 0);
       digitalWrite(RELAYPIN3, 0);
       boilerON = 0;
@@ -691,7 +695,8 @@ void ManageHeating()
     {
     if (laststate!=OFF)
     {
-      digitalWrite(RELAYPIN1, 0);
+      //digitalWrite(RELAYPIN1, 0);
+      ot.setBoilerTemperature(0.0);
       digitalWrite(RELAYPIN2, 0);
       digitalWrite(RELAYPIN3, 0);
       boilerON = 0;
@@ -706,7 +711,8 @@ void ManageHeating()
     }
     if (actualTemperature < (setValue - RADIATOR_HYST))
     {
-      digitalWrite(RELAYPIN1, 1);
+      //digitalWrite(RELAYPIN1, 1);
+      ot.setBoilerTemperature(60.0);
       digitalWrite(RELAYPIN2, 1);
       boilerON = 1;
       radiatorON = 1;
@@ -719,7 +725,8 @@ void ManageHeating()
     }
     if (waterTemperature < (setFloorTemp - setFloorHyst))
     {
-      digitalWrite(RELAYPIN1, 1);
+      //digitalWrite(RELAYPIN1, 1);
+      ot.setBoilerTemperature(45.0);
       digitalWrite(RELAYPIN3, 1);
       boilerON = 1;
       floorON = 1;
@@ -745,7 +752,8 @@ void ManageHeating()
      }
      if (actualTemperature > (setValue + RADIATOR_HYST))
      {
-      digitalWrite(RELAYPIN1, 0);
+      //digitalWrite(RELAYPIN1, 0);
+      ot.setBoilerTemperature(0.0);
       digitalWrite(RELAYPIN2, 0);
       digitalWrite(RELAYPIN3, 1);
       boilerON = 0;
@@ -767,6 +775,7 @@ void ManageHeating()
     {
      if (actualTemperature < (setValue - RADIATOR_HYST))
      {
+      ot.setBoilerTemperature(60.0);
       digitalWrite(RELAYPIN2, 1);
       radiatorON = 1;
       storeFloorHyst = setFloorHyst;
@@ -779,7 +788,8 @@ void ManageHeating()
      }
      if (waterTemperature > setFloorTemp)
      {
-      digitalWrite(RELAYPIN1, 0);
+      //digitalWrite(RELAYPIN1, 0);
+      ot.setBoilerTemperature(0.0);
       boilerON = 0;
       heatstate = PUMPOVERRUN;
       laststate = FLOOR_ON;
@@ -792,6 +802,7 @@ void ManageHeating()
     {
      if (actualTemperature > (setValue + RADIATOR_HYST))
      {
+      ot.setBoilerTemperature(45.0);
       digitalWrite(RELAYPIN2, 0);
       radiatorON = 0;
       setFloorHyst = storeFloorHyst;
@@ -868,15 +879,18 @@ void MainTask()
     ReadTransmitter();
     ManageHeating();
     Draw_RoomTemp();
+    ot.setBoilerStatus(1, 1, 0); //feed OpenTherm
     terminal.println("Main task time:");
     terminal.println(millis()-tic);
     terminal.flush();
   }
 }
 
+void handleInterrupt() {
+  ot.handleInterrupt();
+}
+
 void setup() {
-  pinMode(RELAYPIN1, OUTPUT);
-  digitalWrite(RELAYPIN1, 0);
   pinMode(RELAYPIN2, OUTPUT);
   digitalWrite(RELAYPIN2, 0);
   pinMode(RELAYPIN3, OUTPUT);
@@ -927,8 +941,10 @@ void setup() {
   Blynk.syncAll();
   Blynk.virtualWrite(V7, boilerON);
   Blynk.virtualWrite(V8, floorON);
-  Blynk.virtualWrite(V9, radiatorON); 
-
+  Blynk.virtualWrite(V9, radiatorON);
+  
+  ot.begin(handleInterrupt);
+  
   MainTask();
 }
 
