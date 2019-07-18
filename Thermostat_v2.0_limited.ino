@@ -889,23 +889,23 @@ void handleInterrupt() {
 float CalculateBoilerTemp(HEAT_SM controlState)
 {
   float boilerTemp;
-	float errorSignal;
-
-	if (controlState == FLOOR_ON)
-	{
-		errorSignal = setFloorTemp - waterTemperature;
-		boilerTemp = setFloorTemp + 4.0 + errorSignal/3.0;
-	}
-	else
-	{
-		errorSignal = setValue + RADIATOR_HYST - actualTemperature;
-		boilerTemp = FLOOR_TEMP + errorSignal*100.0;
-		if (boilerTemp > RADIATOR_TEMP)
-		{
-			boilerTemp = RADIATOR_TEMP;
-		}
-	}
-	return boilerTemp;
+  float errorSignal;
+  
+  if (controlState == FLOOR_ON)
+  {
+    errorSignal = setFloorTemp - waterTemperature;
+    boilerTemp = setFloorTemp + 4.0 + errorSignal/3.0;
+  }
+  else
+  {
+    errorSignal = setValue + RADIATOR_HYST - actualTemperature;
+    boilerTemp = FLOOR_TEMP + errorSignal*100.0;
+    if (boilerTemp > RADIATOR_TEMP)
+    {
+      boilerTemp = RADIATOR_TEMP;
+    }
+  }
+  return boilerTemp;
 }
 
 void setup() {
