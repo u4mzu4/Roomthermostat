@@ -900,10 +900,14 @@ float CalculateBoilerTemp(HEAT_SM controlState)
   {
     errorSignal = setValue + RADIATOR_HYST - actualTemperature;
     boilerTemp = FLOOR_TEMP + errorSignal*100.0;
-    if (boilerTemp > RADIATOR_TEMP)
-    {
-      boilerTemp = RADIATOR_TEMP;
-    }
+  }
+  if (boilerTemp > RADIATOR_TEMP)
+  {
+    boilerTemp = RADIATOR_TEMP;
+  }
+  if (boilerTemp < 0.0)
+  {
+    boilerTemp = 0.0;
   }
   return boilerTemp;
 }
