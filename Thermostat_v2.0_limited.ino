@@ -1,7 +1,7 @@
 /*
   ESP32-EVB development board (https://www.olimex.com/Products/IoT/ESP32/ESP32-EVB/open-source-hardware)
   BME280 + DS18B20 sensors
-  2.24" OLED SSD1309
+  2.42" OLED SSD1309
   I2C rotary (https://github.com/Fattoresaimon/I2CEncoderV2)
   Blynk service
   
@@ -9,8 +9,6 @@
 
 //Includes
 #include <Adafruit_BME280.h>
-#include <Wire.h>
-#include <OneWire.h>
 #include <DallasTemperature.h>
 #include <U8g2lib.h>
 #include <NTPtimeESP.h>
