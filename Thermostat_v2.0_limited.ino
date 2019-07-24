@@ -102,12 +102,10 @@ OpenTherm ot(OTPIN_IN, OTPIN_OUT);
 
 void GetWaterTemp()
 {
-  unsigned short tempRaw;
+  unsigned short tempRaw = 0x2A80;
   static float lastvalidTemperature;
   static int ds18b20Errorcounter = 0;
   
-  sensor.requestTemperaturesByAddress(sensorDeviceAddress);
-  tempRaw = sensor.getTemp(sensorDeviceAddress);
   while (tempRaw == 0x2A80)
   {
     sensor.requestTemperaturesByAddress(sensorDeviceAddress);
