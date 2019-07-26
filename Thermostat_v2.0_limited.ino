@@ -63,6 +63,7 @@ enum SETTING_SM {
 #define MAINTIMER 60013 //1min
 #define RADIATOR_HYST 0.1
 #define DS18B20_RESOLUTION 11
+#define DS18B20_DEFREG 0x2A80
 #define ENCODER_ADDRESS 0x02
 #define RADIATOR_TEMP 60.0
 #define FLOOR_TEMP 40.0
@@ -102,11 +103,11 @@ OpenTherm ot(OTPIN_IN, OTPIN_OUT);
 
 void GetWaterTemp()
 {
-  unsigned short tempRaw = 0x2A80;
+  unsigned short tempRaw = DS18B20_DEFREG;
   static float lastvalidTemperature;
   static int ds18b20Errorcounter = 0;
   
-  while (tempRaw == 0x2A80)
+  while (tempRaw == DS18B20_DEFREG)
   {
     sensor.requestTemperaturesByAddress(sensorDeviceAddress);
     tempRaw = sensor.getTemp(sensorDeviceAddress);
