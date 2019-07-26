@@ -1,15 +1,14 @@
 /*
   ESP32-EVB development board (https://www.olimex.com/Products/IoT/ESP32/ESP32-EVB/open-source-hardware)
   BME280 + DS18B20 sensors
-  2.24" OLED SSD1309
+  2.42" OLED SSD1309
   I2C rotary (https://github.com/Fattoresaimon/I2CEncoderV2)
   Blynk service
+  
 */
 
 //Includes
 #include <Adafruit_BME280.h>
-#include <Wire.h>
-#include <OneWire.h>
 #include <DallasTemperature.h>
 #include <U8g2lib.h>
 #include <NTPtimeESP.h>
@@ -17,6 +16,7 @@
 #include <HTTPClient.h>
 #include <i2cEncoderLibV2.h>
 #include <icons.h>
+#include <OpenTherm.h>
 
 //Enum
 enum DISPLAY_SM {
@@ -47,22 +47,26 @@ enum SETTING_SM {
   THERMO    = 6,
   HYST_SET  = 7,
   THERMO_SET= 8,
-  RESERVED  = 9
+  R3S3RV3D  = 9
   };
 
 
 //Defines
 #define RELAYPIN1 32
 #define RELAYPIN2 33
-#define RELAYPIN3 4
 #define WATERPIN  17
+#define OTPIN_IN 36
+#define OTPIN_OUT 4
 #define TIMEOUT   5000  //5 sec
 #define AFTERCIRCTIME 300000 //5min
 #define BUTIMER   61
 #define MAINTIMER 60013 //1min
 #define RADIATOR_HYST 0.1
 #define DS18B20_RESOLUTION 11
+#define DS18B20_DEFREG 0x2A80
 #define ENCODER_ADDRESS 0x02
+#define RADIATOR_TEMP 60.0
+#define FLOOR_TEMP 40.0
 
 //Global variables
 float waterTemperature;
@@ -95,16 +99,15 @@ OneWire oneWire(WATERPIN);
 DallasTemperature sensor(&oneWire);
 DeviceAddress sensorDeviceAddress;
 i2cEncoderLibV2 Encoder(ENCODER_ADDRESS);
+OpenTherm ot(OTPIN_IN, OTPIN_OUT);
 
 void GetWaterTemp()
 {
-  unsigned short tempRaw;
+  unsigned short tempRaw = DS18B20_DEFREG;
   static float lastvalidTemperature;
   static int ds18b20Errorcounter = 0;
   
-  sensor.requestTemperaturesByAddress(sensorDeviceAddress);
-  tempRaw = sensor.getTemp(sensorDeviceAddress);
-  while (tempRaw == 0x2A80)
+  while (tempRaw == DS18B20_DEFREG)
   {
     sensor.requestTemperaturesByAddress(sensorDeviceAddress);
     tempRaw = sensor.getTemp(sensorDeviceAddress);
@@ -671,9 +674,9 @@ void ManageHeating()
     }
     else
     {
+      ot.setBoilerTemperature(0.0);
       digitalWrite(RELAYPIN1, 0);
       digitalWrite(RELAYPIN2, 0);
-      digitalWrite(RELAYPIN3, 0);
       boilerON = 0;
       radiatorON = 0;
       floorON = 0;
@@ -691,9 +694,9 @@ void ManageHeating()
     {
     if (laststate!=OFF)
     {
+      ot.setBoilerTemperature(0.0);
       digitalWrite(RELAYPIN1, 0);
       digitalWrite(RELAYPIN2, 0);
-      digitalWrite(RELAYPIN3, 0);
       boilerON = 0;
       radiatorON = 0;
       floorON = 0;
@@ -706,25 +709,23 @@ void ManageHeating()
     }
     if (actualTemperature < (setValue - RADIATOR_HYST))
     {
-      digitalWrite(RELAYPIN1, 1);
+      heatstate = RADIATOR_ON;
       digitalWrite(RELAYPIN2, 1);
       boilerON = 1;
       radiatorON = 1;
       storeFloorHyst = setFloorHyst;
       setFloorHyst = 1.0;
-      heatstate = RADIATOR_ON;
       Blynk.virtualWrite(V7, boilerON);
       Blynk.virtualWrite(V9, radiatorON); 
       break;
     }
     if (waterTemperature < (setFloorTemp - setFloorHyst))
     {
+      heatstate = FLOOR_ON;
       digitalWrite(RELAYPIN1, 1);
-      digitalWrite(RELAYPIN3, 1);
       boilerON = 1;
       floorON = 1;
       storeFloorHyst = setFloorHyst;
-      heatstate = FLOOR_ON;
       Blynk.virtualWrite(V7, boilerON);
       Blynk.virtualWrite(V8, floorON);
       break;
@@ -734,9 +735,10 @@ void ManageHeating()
     
     case RADIATOR_ON:
     {
+     ot.setBoilerTemperature(CalculateBoilerTemp(heatstate));
      if (waterTemperature < (setFloorTemp - setFloorHyst))
      {
-      digitalWrite(RELAYPIN3, 1);
+      digitalWrite(RELAYPIN1, 1);
       floorON = 1;
       heatstate = ALL_ON;
       laststate = RADIATOR_ON;
@@ -745,9 +747,9 @@ void ManageHeating()
      }
      if (actualTemperature > (setValue + RADIATOR_HYST))
      {
-      digitalWrite(RELAYPIN1, 0);
+      ot.setBoilerTemperature(0.0);
+      digitalWrite(RELAYPIN1, 1);
       digitalWrite(RELAYPIN2, 0);
-      digitalWrite(RELAYPIN3, 1);
       boilerON = 0;
       radiatorON = 0;
       floorON = 1;
@@ -765,13 +767,14 @@ void ManageHeating()
 
     case FLOOR_ON:
     {
+     ot.setBoilerTemperature(CalculateBoilerTemp(heatstate));
      if (actualTemperature < (setValue - RADIATOR_HYST))
      {
+      heatstate = ALL_ON;
       digitalWrite(RELAYPIN2, 1);
       radiatorON = 1;
       storeFloorHyst = setFloorHyst;
       setFloorHyst = 1.0;
-      heatstate = ALL_ON;
       laststate = FLOOR_ON;
       Blynk.virtualWrite(V11, setFloorHyst);
       Blynk.virtualWrite(V9, radiatorON); 
@@ -779,7 +782,7 @@ void ManageHeating()
      }
      if (waterTemperature > setFloorTemp)
      {
-      digitalWrite(RELAYPIN1, 0);
+      ot.setBoilerTemperature(0.0);
       boilerON = 0;
       heatstate = PUMPOVERRUN;
       laststate = FLOOR_ON;
@@ -790,12 +793,13 @@ void ManageHeating()
     
     case ALL_ON:
     {
+     ot.setBoilerTemperature(CalculateBoilerTemp(heatstate));
      if (actualTemperature > (setValue + RADIATOR_HYST))
      {
+      heatstate = FLOOR_ON;
       digitalWrite(RELAYPIN2, 0);
       radiatorON = 0;
       setFloorHyst = storeFloorHyst;
-      heatstate = FLOOR_ON;
       laststate = ALL_ON;
       Blynk.virtualWrite(V11, setFloorHyst);
       Blynk.virtualWrite(V9, radiatorON); 
@@ -803,7 +807,7 @@ void ManageHeating()
      }
      if (waterTemperature > setFloorTemp)
      {
-      digitalWrite(RELAYPIN3, 0);
+      digitalWrite(RELAYPIN1, 0);
       floorON = 0;
       heatstate = RADIATOR_ON;
       laststate = ALL_ON;
@@ -868,19 +872,48 @@ void MainTask()
     ReadTransmitter();
     ManageHeating();
     Draw_RoomTemp();
+    ot.setBoilerStatus(1, 1, 0); //feed OpenTherm
     terminal.println("Main task time:");
     terminal.println(millis()-tic);
     terminal.flush();
   }
 }
 
+void handleInterrupt() {
+  ot.handleInterrupt();
+}
+
+float CalculateBoilerTemp(HEAT_SM controlState)
+{
+  float boilerTemp;
+  float errorSignal;
+  
+  if (controlState == FLOOR_ON)
+  {
+    errorSignal = setFloorTemp - waterTemperature;
+    boilerTemp = setFloorTemp + 4.0 + errorSignal/3.0;
+  }
+  else
+  {
+    errorSignal = setValue + RADIATOR_HYST - actualTemperature;
+    boilerTemp = FLOOR_TEMP + errorSignal*100.0;
+  }
+  if (boilerTemp > RADIATOR_TEMP)
+  {
+    boilerTemp = RADIATOR_TEMP;
+  }
+  if (boilerTemp < 0.0)
+  {
+    boilerTemp = 0.0;
+  }
+  return boilerTemp;
+}
+
 void setup() {
   pinMode(RELAYPIN1, OUTPUT);
-  digitalWrite(RELAYPIN1, 0);
   pinMode(RELAYPIN2, OUTPUT);
+  digitalWrite(RELAYPIN1, 0);
   digitalWrite(RELAYPIN2, 0);
-  pinMode(RELAYPIN3, OUTPUT);
-  digitalWrite(RELAYPIN3, 0);
 
   timer.setInterval(BUTIMER,ButtonCheck);
   timer.setInterval(MAINTIMER,MainTask);
@@ -927,8 +960,10 @@ void setup() {
   Blynk.syncAll();
   Blynk.virtualWrite(V7, boilerON);
   Blynk.virtualWrite(V8, floorON);
-  Blynk.virtualWrite(V9, radiatorON); 
-
+  Blynk.virtualWrite(V9, radiatorON);
+  
+  ot.begin(handleInterrupt);
+  
   MainTask();
 }
 
