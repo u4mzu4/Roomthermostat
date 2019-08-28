@@ -106,11 +106,16 @@ void GetWaterTemp()
   unsigned short tempRaw = DS18B20_DEFREG;
   static float lastvalidTemperature;
   static int ds18b20Errorcounter = 0;
+  unsigned long DS18B20timeout = millis();
   
   while (tempRaw == DS18B20_DEFREG)
   {
     sensor.requestTemperaturesByAddress(sensorDeviceAddress);
     tempRaw = sensor.getTemp(sensorDeviceAddress);
+    if (millis()-DS18B20timeout > TIMEOUT)
+    {
+      break;
+    }
   }
   waterTemperature=tempRaw/128.0;
   if (waterTemperature > 84.0) 
@@ -478,7 +483,7 @@ bool Draw_Setting(bool smReset)
     }
     case THERMO_SET:
     {
-      static int posCounter=33;
+      static unsigned int posCounter=33;
       static bool initSet = 1;
       
       if ((prevState == HYST) && initSet)
