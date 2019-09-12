@@ -67,13 +67,14 @@ enum SETTING_SM {
 #define ENCODER_ADDRESS 0x02
 #define RADIATOR_TEMP 60.0
 #define FLOOR_TEMP 40.0
+#define NROFTRANSM 2
 
 //Global variables
 float waterTemperature;
 float actualTemperature;
 float actualHumidity;
 float actualPressure;
-float transData;
+float transData[NROFTRANSM];
 float bmeTemperature;
 float setValue = 22.0;
 float setFloorTemp = 31.0;
@@ -622,46 +623,57 @@ void Draw_Info()
 
 void ReadTransmitter() 
 {
-  static float lastvalidtransTemp;
-  static int transmErrorcounter = 0;
+  static float lastvalidtransTemp[NROFTRANSM];
+  static int transmErrorcounter[NROFTRANSM] = {0,0};
 
-  webclient.begin(host);
-  webclient.setConnectTimeout(500);
-  if(webclient.GET() == HTTP_CODE_OK) 
+  for (int i = 0; i <NROFTRANSM; i++) 
   {
-    transData = webclient.getString().toFloat();
+    webclient.begin(host[i]);
+    webclient.setConnectTimeout(500);
+    if(webclient.GET() == HTTP_CODE_OK) 
+    {
+      transData[i] = webclient.getString().toFloat();
+    }
+    else
+    {
+      transData[i] = 0.0;
+    }
+    webclient.end();
+    if ((transData[i] < 10.0)||transData[i] > 84.0)  
+    {
+      transData[i] = lastvalidtransTemp[i];
+      transmErrorcounter[i]++;
+    }
+    else
+    {
+      lastvalidtransTemp[i] = transData[i];
+      transmErrorcounter[i] = 0;
+    }
   }
-  else
-  {
-    transData = 0.0;
-  }
-  webclient.end();
-  if ((transData < 10.0)||transData > 84.0)  {
-    transData = lastvalidtransTemp;
-    transmErrorcounter++;
-  }
-  else
-  {
-    lastvalidtransTemp = transData;
-    transmErrorcounter = 0;
-  }
-  if (transmErrorcounter > 4)
+  
+  if (transmErrorcounter[0] > 4)
   {
     setControlBase = 1;
     Blynk.virtualWrite(V12, setControlBase);
     Encoder.writeLEDR(0xFF);
-    terminal.println("Transmitter error");
+    terminal.println("Transmitter0 error");
   }
+  if (transmErrorcounter[1] > 4)
+  {
+    Encoder.writeLEDR(0xFF);
+    terminal.println("Transmitter1 error");
+  }
+  
   if (setControlBase == 2)
   {
-    actualTemperature = transData;
+    actualTemperature = transData[0];
   }
   else
   {
     actualTemperature = bmeTemperature;
   }
   Blynk.virtualWrite(V1, actualTemperature);
-  Blynk.virtualWrite(V13, transData);
+  Blynk.virtualWrite(V13, transData[0]);
 }
 
 void ManageHeating()
