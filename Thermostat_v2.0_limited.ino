@@ -497,9 +497,9 @@ bool RefreshDateTime()
 
 void Draw_Info()
 {
-  char temperatureString[8];
-  char humidityString[5];
-  char pressureString[8];
+  char bme280String[8];
+  char transDataString0[8];
+  char transDataString1[8];
   char watertempString[8];
   static char dateChar[13];
   static char timeChar[11];
@@ -517,12 +517,12 @@ void Draw_Info()
     sprintf(dateChar,"%i-%02i-%02i",dateTime.year,dateTime.month,dateTime.day);
     sprintf(timeChar,"%02i:%02i:%02i",dateTime.hour,dateTime.minute,dateTime.second);
   }
-  dtostrf(actualTemperature, 4, 1, temperatureString);
+  dtostrf(bmeTemperature, 4, 1, bme280String);
   strcat(temperatureString, "°C");
-  dtostrf(actualHumidity, 2, 0, humidityString);
-  strcat(humidityString, " %");
-  dtostrf(actualPressure, 4, 0, pressureString);
-  strcat(pressureString, " Pa");
+  dtostrf(transData[0], 4, 1, transDataString0);
+  strcat(humidityString, "°C");
+  dtostrf(transData[1], 4, 1, transDataString1);
+  strcat(pressureString, "°C");
   dtostrf(waterTemperature, 4, 1, watertempString);
   strcat(watertempString, "°C");
 
@@ -532,14 +532,14 @@ void Draw_Info()
   u8g2.setFont(u8g2_font_t0_12_tf); // choose a suitable font
   u8g2.drawUTF8(0,10,dateChar);  // write date
   u8g2.drawUTF8(65,10,timeChar);  // write time
-  u8g2.drawUTF8(0,20,"Roomtemp:");  // write temperature
-  u8g2.drawUTF8(65,20,temperatureString); // write temperature
-  u8g2.drawUTF8(0,30,"Humidity:");  // write humidity
-  u8g2.drawUTF8(65,30,humidityString); // write humidity
-  u8g2.drawUTF8(0,40,"Pressure:");  // write pressure
-  u8g2.drawUTF8(65,40,pressureString); // write pressure
-  u8g2.drawUTF8(0,50,"Watertemp:");  // write watertemp
-  u8g2.drawUTF8(65,50,watertempString); // write watertemp
+  u8g2.drawUTF8(0,20,"LivingR:");  
+  u8g2.drawUTF8(65,20,bme280String); // write living room temperature
+  u8g2.drawUTF8(0,30,"ChildR:");  
+  u8g2.drawUTF8(65,30,transDataString0); // write child room temperature
+  u8g2.drawUTF8(0,40,"Kitchen:");  
+  u8g2.drawUTF8(65,40,transDataString1); // write kitchen temperature
+  u8g2.drawUTF8(0,50,"Watertemp:");  
+  u8g2.drawUTF8(65,50,watertempString); // write water temperature
   u8g2.sendBuffer();          // transfer internal memory to the display
   lastRefresh == dateTime.second;
 }
