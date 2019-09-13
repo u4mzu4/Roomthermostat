@@ -250,7 +250,7 @@ void Draw_RoomTemp()
   char temperatureString[8];
 
   dtostrf(actualTemperature, 4, 1, temperatureString);
-  strcat(temperatureString, "°C");
+  strcat(temperatureString, "ï¿½C");
   //Serial.println(temperatureString);
   //Serial.println();
   u8g2.setContrast(0);
@@ -429,7 +429,7 @@ bool Draw_Setting(bool smReset)
       if (initSet)
       {
         dtostrf(setValue, 4, 1, actualString);
-        strcat(actualString, "°C");
+        strcat(actualString, "ï¿½C");
         Encoder.writeCounter((int32_t)setValue*10);
         Encoder.writeMax((int32_t)255); /* Set the maximum  */
         Encoder.writeMin((int32_t)180); /* Set the minimum threshold */
@@ -443,7 +443,7 @@ bool Draw_Setting(bool smReset)
       }
       rotaryPosition = Encoder.readCounterInt();
       dtostrf(rotaryPosition/10.0, 4, 1, setString);
-      strcat(setString, "°C");
+      strcat(setString, "ï¿½C");
       
       Encoder.writeLEDR((rotaryPosition-180)*3);
       Encoder.writeLEDB((255-rotaryPosition)*3);        
@@ -518,13 +518,13 @@ void Draw_Info()
     sprintf(timeChar,"%02i:%02i:%02i",dateTime.hour,dateTime.minute,dateTime.second);
   }
   dtostrf(bmeTemperature, 4, 1, bme280String);
-  strcat(temperatureString, "°C");
+  strcat(bme280String, "Â°C");
   dtostrf(transData[0], 4, 1, transDataString0);
-  strcat(humidityString, "°C");
+  strcat(transDataString0, "Â°C");
   dtostrf(transData[1], 4, 1, transDataString1);
-  strcat(pressureString, "°C");
+  strcat(transDataString1, "Â°C");
   dtostrf(waterTemperature, 4, 1, watertempString);
-  strcat(watertempString, "°C");
+  strcat(watertempString, "Â°C");
 
   Encoder.writeLEDR(0x77);
   Encoder.writeLEDG(0xD7);
