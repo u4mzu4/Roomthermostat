@@ -250,7 +250,7 @@ void Draw_RoomTemp()
   char temperatureString[8];
 
   dtostrf(actualTemperature, 4, 1, temperatureString);
-  strcat(temperatureString, "�C");
+  strcat(temperatureString, "°C");
   //Serial.println(temperatureString);
   //Serial.println();
   u8g2.setContrast(0);
@@ -429,7 +429,7 @@ bool Draw_Setting(bool smReset)
       if (initSet)
       {
         dtostrf(setValue, 4, 1, actualString);
-        strcat(actualString, "�C");
+        strcat(actualString, "°C");
         Encoder.writeCounter((int32_t)setValue*10);
         Encoder.writeMax((int32_t)255); /* Set the maximum  */
         Encoder.writeMin((int32_t)180); /* Set the minimum threshold */
@@ -443,7 +443,7 @@ bool Draw_Setting(bool smReset)
       }
       rotaryPosition = Encoder.readCounterInt();
       dtostrf(rotaryPosition/10.0, 4, 1, setString);
-      strcat(setString, "�C");
+      strcat(setString, "°C");
       
       Encoder.writeLEDR((rotaryPosition-180)*3);
       Encoder.writeLEDB((255-rotaryPosition)*3);        
