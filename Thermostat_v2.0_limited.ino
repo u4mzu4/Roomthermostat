@@ -350,7 +350,7 @@ bool Draw_Setting(bool smReset)
         }
         if (Encoder.readStatus(PUSHP)){
           prevState = FLOOR;
-	      settingState = THERMO;
+	        settingState = THERMO;
         }
       }
       break;
@@ -385,7 +385,6 @@ bool Draw_Setting(bool smReset)
           setControlBase = 2;
           Blynk.virtualWrite(V12, setControlBase);
           settingState = THERMO;
-          prevState = CHILD;
         }
       }
       break;
@@ -402,7 +401,6 @@ bool Draw_Setting(bool smReset)
           setControlBase = 1;
           Blynk.virtualWrite(V12, setControlBase);
           settingState = THERMO;
-          prevState = SOFA;
         }
       }
       break;
@@ -788,6 +786,10 @@ BLYNK_WRITE(V12)
 void MainTask()
 {
   unsigned long tic = millis();
+  static unsigned int mintask = 4000;
+  static unsigned int maxtask = 0;
+  unsigned int tasktime;
+  
   if (!disableMainTask)
   {
     GetWaterTemp();
@@ -796,9 +798,21 @@ void MainTask()
     ManageHeating();
     Draw_RoomTemp();
     ot.setBoilerStatus(1, 1, 0); //feed OpenTherm
-    terminal.println("Main task time:");
-    terminal.println(millis()-tic);
-    terminal.flush();
+    tasktime=millis()-tic;
+    if (tasktime>maxtask)
+    {
+      maxtask=tasktime;
+      terminal.println("Max task time:");
+      terminal.println(maxtask);
+      terminal.flush();
+    }
+    if (tasktime<mintask)
+    {
+      mintask=tasktime;
+      terminal.println("Min task time:");
+      terminal.println(mintask);
+      terminal.flush();
+    }
   }
 }
 
@@ -829,7 +843,9 @@ float CalculateBoilerTemp(HEAT_SM controlState)
   {
     boilerTemp = 0.0;
   }
-  return boilerTemp;
+  terminal.println("Bolier temp:");
+  terminal.println(boilerTemp);
+  terminal.flush();
 }
 
 void setup() {
