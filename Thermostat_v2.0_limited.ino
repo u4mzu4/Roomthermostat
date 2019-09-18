@@ -816,7 +816,7 @@ void MainTask()
   }
 }
 
-void handleInterrupt() {
+void IRAM_ATTR handleInterrupt() {
   ot.handleInterrupt();
 }
 
