@@ -218,8 +218,7 @@ void ButtonCheck()
       Draw_Info();
       if (millis()-stateStartTime > TIMEOUT)
       {
-        Encoder.writeLEDR(0x00);
-        Encoder.writeLEDG(0x00);
+	Encoder.writeRGBCode(0x000000);
         Encoder.updateStatus();
         Draw_RoomTemp();
         displayBox = MAIN;
@@ -231,8 +230,7 @@ void ButtonCheck()
       disableMainTask = 1;
       if (Draw_Setting(newSettings))
       {
-        Encoder.writeLEDR(0x00);
-        Encoder.writeLEDB(0x00);
+	Encoder.writeRGBCode(0x000000);
         Encoder.updateStatus();
         Draw_RoomTemp();
         displayBox = MAIN;
@@ -526,8 +524,7 @@ void Draw_Info()
   dtostrf(waterTemperature, 4, 1, watertempString);
   strcat(watertempString, "°C");
 
-  Encoder.writeLEDR(0x77);
-  Encoder.writeLEDG(0xD7);
+  Encoder.writeRGBCode(0x77D700);
   u8g2.clearBuffer();          // clear the internal memory
   u8g2.setFont(u8g2_font_t0_12_tf); // choose a suitable font
   u8g2.drawUTF8(0,10,dateChar);  // write date
