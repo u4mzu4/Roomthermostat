@@ -59,7 +59,7 @@ enum SETTING_SM {
 #define AFTERCIRCTIME 300000 //5min
 #define BUTIMER   61
 #define MAINTIMER 60013 //1min
-#define RADIATOR_HYST 0.1
+#define HYSTERESIS 0.1
 #define DS18B20_RESOLUTION 11
 #define DS18B20_DEFREG 0x2A80
 #define ENCODER_ADDRESS 0x02
@@ -644,7 +644,7 @@ void ManageHeating()
       Blynk.virtualWrite(V9, radiatorON); 
       break;
     }
-    if (actualTemperature < (setValue - RADIATOR_HYST))
+    if (actualTemperature < (setValue - HYSTERESIS))
     {
       heatstate = RADIATOR_ON;
       digitalWrite(RELAYPIN2, 1);
@@ -654,7 +654,7 @@ void ManageHeating()
       Blynk.virtualWrite(V9, radiatorON); 
       break;
     }
-    if (kitchenTemp < (setFloorTemp - RADIATOR_HYST))
+    if (kitchenTemp < (setFloorTemp - HYSTERESIS))
     {
       heatstate = FLOOR_ON;
       digitalWrite(RELAYPIN1, 1);
@@ -670,7 +670,7 @@ void ManageHeating()
     case RADIATOR_ON:
     {
      ot.setBoilerTemperature(CalculateBoilerTemp(heatstate));
-     if (kitchenTemp < (setFloorTemp - RADIATOR_HYST))
+     if (kitchenTemp < (setFloorTemp - HYSTERESIS))
      {
       digitalWrite(RELAYPIN1, 1);
       floorON = 1;
@@ -679,7 +679,7 @@ void ManageHeating()
       Blynk.virtualWrite(V8, floorON);
       break;
      }
-     if (actualTemperature > (setValue + RADIATOR_HYST))
+     if (actualTemperature > (setValue + HYSTERESIS))
      {
       ot.setBoilerTemperature(0.0);
       digitalWrite(RELAYPIN1, 1);
@@ -694,13 +694,27 @@ void ManageHeating()
       Blynk.virtualWrite(V9, radiatorON); 
       break;
      }
+     if (waterTemperature > MAXWATERTEMP)
+     {
+      digitalWrite(RELAYPIN1, 0);
+      floorON = 0;
+      Blynk.virtualWrite(V8, floorON);
+      break;
+     }
+     if (waterTemperature < (MAXWATERTEMP - 4.0))
+     {
+      digitalWrite(RELAYPIN1, 1);
+      floorON = 1;
+      Blynk.virtualWrite(V8, floorON);
+      break;
+     }
      break;
     }
 
     case FLOOR_ON:
     {
      ot.setBoilerTemperature(CalculateBoilerTemp(heatstate));
-     if (actualTemperature < (setValue - RADIATOR_HYST))
+     if (actualTemperature < (setValue - HYSTERESIS))
      {
       heatstate = ALL_ON;
       digitalWrite(RELAYPIN2, 1);
@@ -709,7 +723,7 @@ void ManageHeating()
       Blynk.virtualWrite(V9, radiatorON); 
       break;
      }
-     if ((kitchenTemp > (setFloorTemp + RADIATOR_HYST))||(waterTemperature > MAXWATERTEMP))
+     if ((kitchenTemp > (setFloorTemp + HYSTERESIS))||(waterTemperature > MAXWATERTEMP))
      {
       ot.setBoilerTemperature(0.0);
       boilerON = 0;
@@ -723,7 +737,7 @@ void ManageHeating()
     case ALL_ON:
     {
      ot.setBoilerTemperature(CalculateBoilerTemp(heatstate));
-     if (actualTemperature > (setValue + RADIATOR_HYST))
+     if (actualTemperature > (setValue + HYSTERESIS))
      {
       heatstate = FLOOR_ON;
       digitalWrite(RELAYPIN2, 0);
@@ -732,7 +746,7 @@ void ManageHeating()
       Blynk.virtualWrite(V9, radiatorON); 
       break;
      }
-     if ((kitchenTemp > (setFloorTemp + RADIATOR_HYST))||(waterTemperature > MAXWATERTEMP))
+     if ((kitchenTemp > (setFloorTemp + HYSTERESIS))||(waterTemperature > MAXWATERTEMP))
      {
       digitalWrite(RELAYPIN1, 0);
       floorON = 0;
@@ -828,12 +842,12 @@ float CalculateBoilerTemp(HEAT_SM controlState)
   
   if (controlState == FLOOR_ON)
   {
-    errorSignal = setFloorTemp + RADIATOR_HYST - kitchenTemp;
+    errorSignal = setFloorTemp + HYSTERESIS - kitchenTemp;
     boilerTemp = setFloorTemp + 8.0 + errorSignal*50.0;
   }
   else
   {
-    errorSignal = setValue + RADIATOR_HYST - actualTemperature;
+    errorSignal = setValue + HYSTERESIS - actualTemperature;
     boilerTemp = FLOOR_TEMP + errorSignal*100.0;
   }
   if (boilerTemp > RADIATOR_TEMP)
