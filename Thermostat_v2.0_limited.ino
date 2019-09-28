@@ -43,9 +43,7 @@ enum SETTING_SM {
   HOLIDAY   = 2,
   SOFA      = 3,
   CHILD     = 4,
-  HYST      = 5,
   THERMO    = 6,
-  HYST_SET  = 7,
   THERMO_SET= 8,
   R3S3RV3D  = 9
   };
@@ -61,23 +59,25 @@ enum SETTING_SM {
 #define AFTERCIRCTIME 300000 //5min
 #define BUTIMER   61
 #define MAINTIMER 60013 //1min
-#define RADIATOR_HYST 0.1
+#define HYSTERESIS 0.1
 #define DS18B20_RESOLUTION 11
 #define DS18B20_DEFREG 0x2A80
 #define ENCODER_ADDRESS 0x02
 #define RADIATOR_TEMP 60.0
 #define FLOOR_TEMP 40.0
+#define MAXWATERTEMP 36.0
+#define NROFTRANSM 2
 
 //Global variables
 float waterTemperature;
 float actualTemperature;
 float actualHumidity;
 float actualPressure;
-float transData;
+float transData[NROFTRANSM];
 float bmeTemperature;
 float setValue = 22.0;
-float setFloorTemp = 31.0;
-float setFloorHyst = 8.0;
+float setFloorTemp = 22.0;
+float kitchenTemp;
 
 int setControlBase = 2;
 int buttonTime = 0;
@@ -132,6 +132,7 @@ void GetWaterTemp()
   {
     Encoder.writeLEDR(0xFF);
     terminal.println("DS18B20 error");
+    terminal.flush();
   }
   
   Blynk.virtualWrite(V10, waterTemperature);
@@ -175,6 +176,7 @@ void ReadBME280()
     Blynk.virtualWrite(V12, setControlBase);
     Encoder.writeLEDR(0xFF);
     terminal.println("BME280 error");
+    terminal.flush();
   }
   
   Blynk.virtualWrite(V14,bmeTemperature);
@@ -216,8 +218,7 @@ void ButtonCheck()
       Draw_Info();
       if (millis()-stateStartTime > TIMEOUT)
       {
-        Encoder.writeLEDR(0x00);
-        Encoder.writeLEDG(0x00);
+	Encoder.writeRGBCode(0x000000);
         Encoder.updateStatus();
         Draw_RoomTemp();
         displayBox = MAIN;
@@ -229,8 +230,7 @@ void ButtonCheck()
       disableMainTask = 1;
       if (Draw_Setting(newSettings))
       {
-        Encoder.writeLEDR(0x00);
-        Encoder.writeLEDB(0x00);
+	Encoder.writeRGBCode(0x000000);
         Encoder.updateStatus();
         Draw_RoomTemp();
         displayBox = MAIN;
@@ -349,7 +349,8 @@ bool Draw_Setting(bool smReset)
           settingState = HOLIDAY;
         }
         if (Encoder.readStatus(PUSHP)){
-          settingState = HYST;
+          prevState = FLOOR;
+	        settingState = THERMO;
         }
       }
       break;
@@ -364,11 +365,9 @@ bool Draw_Setting(bool smReset)
         }
         if (Encoder.readStatus(PUSHP)){
           setValue = 20.0;
-          setFloorTemp = 31.0;
-          setFloorHyst = 9.0;
+          setFloorTemp = 20.0;
           Blynk.virtualWrite(V5, setValue);
           Blynk.virtualWrite(V6, setFloorTemp);
-          Blynk.virtualWrite(V11, setFloorHyst);
           leaveMenu = 1;
         }
       }
@@ -386,7 +385,6 @@ bool Draw_Setting(bool smReset)
           setControlBase = 2;
           Blynk.virtualWrite(V12, setControlBase);
           settingState = THERMO;
-          prevState = CHILD;
         }
       }
       break;
@@ -403,100 +401,30 @@ bool Draw_Setting(bool smReset)
           setControlBase = 1;
           Blynk.virtualWrite(V12, setControlBase);
           settingState = THERMO;
-          prevState = SOFA;
         }
       }
       break;
     }
-    case HYST:
-    {
-      Draw_Bitmap(0,0,hysteresis_width, hysteresis_height,hysteresis_bits,1);
-      if (Encoder.updateStatus()) {
-        stateEnterTime = millis();
-        if (Encoder.readStatus(RINC)){
-          settingState = THERMO;
-          prevState = HYST;
-        }
-        if (Encoder.readStatus(PUSHP)){
-          settingState = HYST_SET;
-          prevState = HYST;
-        }
-      }
-      break;
-    }
+
     case THERMO:
     {
-      if (prevState==HYST)
-      {
-        Draw_Bitmap(32,0,thermometer_width, thermometer_height,thermometer_bits,2);
-      }
-      else
-      {
-        Draw_Bitmap(32,0,thermometer_width, thermometer_height,thermometer_bits,0);
-      }
+      Draw_Bitmap(32,0,thermometer_width, thermometer_height,thermometer_bits,0);
+
       if (Encoder.updateStatus()) {
         stateEnterTime = millis();
-        if (Encoder.readStatus(RDEC) && prevState==HYST){
-          settingState = HYST;
-        }
         if (Encoder.readStatus(PUSHP)){
           settingState = THERMO_SET;
         }
       }
       break;
     }
-    case HYST_SET:
-    { 
-      if (prevState == HYST)
-      {
-        dtostrf(setFloorHyst, 2, 0, actualString);
-        strcat(actualString, "°C");
-        Encoder.writeCounter((int32_t)setFloorHyst);
-        Encoder.writeMax((int32_t)10); /* Set the maximum  */
-        Encoder.writeMin((int32_t) 1); /* Set the minimum threshold */
-        Encoder.writeStep((int32_t)1); 
-        prevState = HYST_SET;
-      }
-      rotaryPosition = Encoder.readCounterInt();
-      dtostrf(rotaryPosition, 2, 0, setString);
-      Encoder.writeLEDB((rotaryPosition-1)*28);
-      Encoder.writeLEDR((10-rotaryPosition)*28);
-      u8g2.clearBuffer();
-      u8g2.drawXBM(0,0,hysteresis_width,hysteresis_height,hysteresis_bits);
-      u8g2.setFont(u8g2_font_t0_12_tf);
-      u8g2.drawUTF8(0,12,"Set:");
-      u8g2.setFont(u8g2_font_helvB18_tf); // choose a suitable font
-      u8g2.drawUTF8(0,40,setString);
-      u8g2.setFont(u8g2_font_t0_12_tf);
-      u8g2.drawUTF8(78,50,"Actual:");
-      u8g2.drawUTF8(78,64,actualString);
-      u8g2.sendBuffer();
-      if (Encoder.updateStatus()) {
-        stateEnterTime = millis();
-        if (Encoder.readStatus(PUSHP)){
-          setFloorHyst = rotaryPosition;
-          Blynk.virtualWrite(V11, setFloorHyst);
-          leaveMenu = 1;
-        }
-      }
-      break;
-    }
+
     case THERMO_SET:
     {
       static unsigned int posCounter=33;
       static bool initSet = 1;
       
-      if ((prevState == HYST) && initSet)
-      {
-        dtostrf(setFloorTemp, 4, 1, actualString);
-        strcat(actualString, "°C");
-        Encoder.writeCounter((int32_t)setFloorTemp*10);
-        Encoder.writeMax((int32_t)360); /* Set the maximum  */
-        Encoder.writeMin((int32_t)240); /* Set the minimum threshold */
-        Encoder.writeStep((int32_t)10); 
-        initSet = 0;
-      }
-      if ((prevState == CHILD || prevState == SOFA) && initSet)
+      if (initSet)
       {
         dtostrf(setValue, 4, 1, actualString);
         strcat(actualString, "°C");
@@ -514,16 +442,10 @@ bool Draw_Setting(bool smReset)
       rotaryPosition = Encoder.readCounterInt();
       dtostrf(rotaryPosition/10.0, 4, 1, setString);
       strcat(setString, "°C");
-      if (prevState == HYST)
-      {
-      Encoder.writeLEDR((rotaryPosition-240)*2);
-      Encoder.writeLEDB((360-rotaryPosition)*2); 
-      }
-      else
-      {
+      
       Encoder.writeLEDR((rotaryPosition-180)*3);
       Encoder.writeLEDB((255-rotaryPosition)*3);        
-      }
+      
       u8g2.clearBuffer();
       u8g2.drawXBM(0,0,thermometer_width,thermometer_height,thermometer_bits);
       u8g2.setFont(u8g2_font_t0_12_tf);
@@ -538,7 +460,7 @@ bool Draw_Setting(bool smReset)
         stateEnterTime = millis();
         if (Encoder.readStatus(PUSHP)){
           leaveMenu = 1;
-          if (prevState == HYST)
+          if (prevState == FLOOR)
           {
             setFloorTemp = rotaryPosition/10.0;
             Blynk.virtualWrite(V6, setFloorTemp);
@@ -573,9 +495,9 @@ bool RefreshDateTime()
 
 void Draw_Info()
 {
-  char temperatureString[8];
-  char humidityString[5];
-  char pressureString[8];
+  char bme280String[8];
+  char transDataString0[8];
+  char transDataString1[8];
   char watertempString[8];
   static char dateChar[13];
   static char timeChar[11];
@@ -593,75 +515,87 @@ void Draw_Info()
     sprintf(dateChar,"%i-%02i-%02i",dateTime.year,dateTime.month,dateTime.day);
     sprintf(timeChar,"%02i:%02i:%02i",dateTime.hour,dateTime.minute,dateTime.second);
   }
-  dtostrf(actualTemperature, 4, 1, temperatureString);
-  strcat(temperatureString, "°C");
-  dtostrf(actualHumidity, 2, 0, humidityString);
-  strcat(humidityString, " %");
-  dtostrf(actualPressure, 4, 0, pressureString);
-  strcat(pressureString, " Pa");
+  dtostrf(bmeTemperature, 4, 1, bme280String);
+  strcat(bme280String, "°C");
+  dtostrf(transData[0], 4, 1, transDataString0);
+  strcat(transDataString0, "°C");
+  dtostrf(transData[1], 4, 1, transDataString1);
+  strcat(transDataString1, "°C");
   dtostrf(waterTemperature, 4, 1, watertempString);
   strcat(watertempString, "°C");
 
-  Encoder.writeLEDR(0x77);
-  Encoder.writeLEDG(0xD7);
+  Encoder.writeRGBCode(0x77D700);
   u8g2.clearBuffer();          // clear the internal memory
   u8g2.setFont(u8g2_font_t0_12_tf); // choose a suitable font
   u8g2.drawUTF8(0,10,dateChar);  // write date
   u8g2.drawUTF8(65,10,timeChar);  // write time
-  u8g2.drawUTF8(0,20,"Roomtemp:");  // write temperature
-  u8g2.drawUTF8(65,20,temperatureString); // write temperature
-  u8g2.drawUTF8(0,30,"Humidity:");  // write humidity
-  u8g2.drawUTF8(65,30,humidityString); // write humidity
-  u8g2.drawUTF8(0,40,"Pressure:");  // write pressure
-  u8g2.drawUTF8(65,40,pressureString); // write pressure
-  u8g2.drawUTF8(0,50,"Watertemp:");  // write watertemp
-  u8g2.drawUTF8(65,50,watertempString); // write watertemp
+  u8g2.drawUTF8(0,20,"LivingR:");  
+  u8g2.drawUTF8(65,20,bme280String); // write living room temperature
+  u8g2.drawUTF8(0,30,"ChildR:");  
+  u8g2.drawUTF8(65,30,transDataString0); // write child room temperature
+  u8g2.drawUTF8(0,40,"Kitchen:");  
+  u8g2.drawUTF8(65,40,transDataString1); // write kitchen temperature
+  u8g2.drawUTF8(0,50,"Watertemp:");  
+  u8g2.drawUTF8(65,50,watertempString); // write water temperature
   u8g2.sendBuffer();          // transfer internal memory to the display
   lastRefresh == dateTime.second;
 }
 
 void ReadTransmitter() 
 {
-  static float lastvalidtransTemp;
-  static int transmErrorcounter = 0;
+  static float lastvalidtransTemp[NROFTRANSM];
+  static int transmErrorcounter[NROFTRANSM] = {0,0};
 
-  webclient.begin(host);
-  webclient.setConnectTimeout(500);
-  if(webclient.GET() == HTTP_CODE_OK) 
+  for (int i = 0; i <NROFTRANSM; i++) 
   {
-    transData = webclient.getString().toFloat();
+    webclient.begin(host[i]);
+    webclient.setConnectTimeout(500);
+    if(webclient.GET() == HTTP_CODE_OK) 
+    {
+      transData[i] = webclient.getString().toFloat();
+    }
+    else
+    {
+      transData[i] = 0.0;
+    }
+    webclient.end();
+    if ((transData[i] < 10.0)||transData[i] > 84.0)  
+    {
+      transData[i] = lastvalidtransTemp[i];
+      transmErrorcounter[i]++;
+    }
+    else
+    {
+      lastvalidtransTemp[i] = transData[i];
+      transmErrorcounter[i] = 0;
+    }
   }
-  else
-  {
-    transData = 0.0;
-  }
-  webclient.end();
-  if ((transData < 10.0)||transData > 84.0)  {
-    transData = lastvalidtransTemp;
-    transmErrorcounter++;
-  }
-  else
-  {
-    lastvalidtransTemp = transData;
-    transmErrorcounter = 0;
-  }
-  if (transmErrorcounter > 4)
+  if (transmErrorcounter[0] > 4)
   {
     setControlBase = 1;
     Blynk.virtualWrite(V12, setControlBase);
     Encoder.writeLEDR(0xFF);
-    terminal.println("Transmitter error");
+    terminal.println("Transmitter0 error");
+    terminal.flush();
   }
+  if (transmErrorcounter[1] > 4)
+  {
+    Encoder.writeLEDR(0xFF);
+    terminal.println("Transmitter1 error");
+    terminal.flush();
+  }
+  kitchenTemp=transData[1];
+  Blynk.virtualWrite(V11, kitchenTemp);
   if (setControlBase == 2)
   {
-    actualTemperature = transData;
+    actualTemperature = transData[0];
   }
   else
   {
     actualTemperature = bmeTemperature;
   }
   Blynk.virtualWrite(V1, actualTemperature);
-  Blynk.virtualWrite(V13, transData);
+  Blynk.virtualWrite(V13, transData[0]);
 }
 
 void ManageHeating()
@@ -669,7 +603,6 @@ void ManageHeating()
   static unsigned long aftercirc;
   static HEAT_SM heatstate = OFF;
   static HEAT_SM laststate;
-  static float storeFloorHyst;
 
   if (!heatingON)
   {
@@ -705,32 +638,28 @@ void ManageHeating()
       boilerON = 0;
       radiatorON = 0;
       floorON = 0;
-      storeFloorHyst = setFloorHyst;
       laststate = OFF;
       Blynk.virtualWrite(V7, boilerON);
       Blynk.virtualWrite(V8, floorON);
       Blynk.virtualWrite(V9, radiatorON); 
       break;
     }
-    if (actualTemperature < (setValue - RADIATOR_HYST))
+    if (actualTemperature < (setValue - HYSTERESIS))
     {
       heatstate = RADIATOR_ON;
       digitalWrite(RELAYPIN2, 1);
       boilerON = 1;
       radiatorON = 1;
-      storeFloorHyst = setFloorHyst;
-      setFloorHyst = 1.0;
       Blynk.virtualWrite(V7, boilerON);
       Blynk.virtualWrite(V9, radiatorON); 
       break;
     }
-    if (waterTemperature < (setFloorTemp - setFloorHyst))
+    if (kitchenTemp < (setFloorTemp - HYSTERESIS))
     {
       heatstate = FLOOR_ON;
       digitalWrite(RELAYPIN1, 1);
       boilerON = 1;
       floorON = 1;
-      storeFloorHyst = setFloorHyst;
       Blynk.virtualWrite(V7, boilerON);
       Blynk.virtualWrite(V8, floorON);
       break;
@@ -741,7 +670,7 @@ void ManageHeating()
     case RADIATOR_ON:
     {
      ot.setBoilerTemperature(CalculateBoilerTemp(heatstate));
-     if (waterTemperature < (setFloorTemp - setFloorHyst))
+     if (kitchenTemp < (setFloorTemp - HYSTERESIS))
      {
       digitalWrite(RELAYPIN1, 1);
       floorON = 1;
@@ -750,7 +679,7 @@ void ManageHeating()
       Blynk.virtualWrite(V8, floorON);
       break;
      }
-     if (actualTemperature > (setValue + RADIATOR_HYST))
+     if (actualTemperature > (setValue + HYSTERESIS))
      {
       ot.setBoilerTemperature(0.0);
       digitalWrite(RELAYPIN1, 1);
@@ -758,13 +687,25 @@ void ManageHeating()
       boilerON = 0;
       radiatorON = 0;
       floorON = 1;
-      setFloorHyst = storeFloorHyst;
       heatstate = PUMPOVERRUN;
       laststate = RADIATOR_ON;
-      Blynk.virtualWrite(V11, setFloorHyst);
       Blynk.virtualWrite(V7, boilerON);
       Blynk.virtualWrite(V8, floorON);
       Blynk.virtualWrite(V9, radiatorON); 
+      break;
+     }
+     if (waterTemperature > MAXWATERTEMP)
+     {
+      digitalWrite(RELAYPIN1, 0);
+      floorON = 0;
+      Blynk.virtualWrite(V8, floorON);
+      break;
+     }
+     if (waterTemperature < (MAXWATERTEMP - 4.0))
+     {
+      digitalWrite(RELAYPIN1, 1);
+      floorON = 1;
+      Blynk.virtualWrite(V8, floorON);
       break;
      }
      break;
@@ -773,19 +714,16 @@ void ManageHeating()
     case FLOOR_ON:
     {
      ot.setBoilerTemperature(CalculateBoilerTemp(heatstate));
-     if (actualTemperature < (setValue - RADIATOR_HYST))
+     if (actualTemperature < (setValue - HYSTERESIS))
      {
       heatstate = ALL_ON;
       digitalWrite(RELAYPIN2, 1);
       radiatorON = 1;
-      storeFloorHyst = setFloorHyst;
-      setFloorHyst = 1.0;
       laststate = FLOOR_ON;
-      Blynk.virtualWrite(V11, setFloorHyst);
       Blynk.virtualWrite(V9, radiatorON); 
       break;
      }
-     if (waterTemperature > setFloorTemp)
+     if ((kitchenTemp > (setFloorTemp + HYSTERESIS))||(waterTemperature > MAXWATERTEMP))
      {
       ot.setBoilerTemperature(0.0);
       boilerON = 0;
@@ -799,18 +737,16 @@ void ManageHeating()
     case ALL_ON:
     {
      ot.setBoilerTemperature(CalculateBoilerTemp(heatstate));
-     if (actualTemperature > (setValue + RADIATOR_HYST))
+     if (actualTemperature > (setValue + HYSTERESIS))
      {
       heatstate = FLOOR_ON;
       digitalWrite(RELAYPIN2, 0);
       radiatorON = 0;
-      setFloorHyst = storeFloorHyst;
       laststate = ALL_ON;
-      Blynk.virtualWrite(V11, setFloorHyst);
       Blynk.virtualWrite(V9, radiatorON); 
       break;
      }
-     if (waterTemperature > setFloorTemp)
+     if ((kitchenTemp > (setFloorTemp + HYSTERESIS))||(waterTemperature > MAXWATERTEMP))
      {
       digitalWrite(RELAYPIN1, 0);
       floorON = 0;
@@ -856,11 +792,6 @@ BLYNK_WRITE(V6)
   setFloorTemp = param.asFloat();
   MainTask();
 }
-BLYNK_WRITE(V11)
-{
-  setFloorHyst = param.asFloat();
-  MainTask();
-}
 BLYNK_WRITE(V12)
 {
   setControlBase = param.asInt();
@@ -870,6 +801,10 @@ BLYNK_WRITE(V12)
 void MainTask()
 {
   unsigned long tic = millis();
+  static unsigned int mintask = 4000;
+  static unsigned int maxtask = 0;
+  unsigned int tasktime;
+  
   if (!disableMainTask)
   {
     GetWaterTemp();
@@ -878,13 +813,25 @@ void MainTask()
     ManageHeating();
     Draw_RoomTemp();
     ot.setBoilerStatus(1, 1, 0); //feed OpenTherm
-    terminal.println("Main task time:");
-    terminal.println(millis()-tic);
-    terminal.flush();
+    tasktime=millis()-tic;
+    if (tasktime>maxtask)
+    {
+      maxtask=tasktime;
+      terminal.println("Max task time:");
+      terminal.println(maxtask);
+      terminal.flush();
+    }
+    if (tasktime<mintask)
+    {
+      mintask=tasktime;
+      terminal.println("Min task time:");
+      terminal.println(mintask);
+      terminal.flush();
+    }
   }
 }
 
-void handleInterrupt() {
+void IRAM_ATTR handleInterrupt() {
   ot.handleInterrupt();
 }
 
@@ -895,12 +842,12 @@ float CalculateBoilerTemp(HEAT_SM controlState)
   
   if (controlState == FLOOR_ON)
   {
-    errorSignal = setFloorTemp - waterTemperature;
-    boilerTemp = setFloorTemp + 4.0 + errorSignal/3.0;
+    errorSignal = setFloorTemp + HYSTERESIS - kitchenTemp;
+    boilerTemp = setFloorTemp + 8.0 + errorSignal*50.0;
   }
   else
   {
-    errorSignal = setValue + RADIATOR_HYST - actualTemperature;
+    errorSignal = setValue + HYSTERESIS - actualTemperature;
     boilerTemp = FLOOR_TEMP + errorSignal*100.0;
   }
   if (boilerTemp > RADIATOR_TEMP)
@@ -911,7 +858,9 @@ float CalculateBoilerTemp(HEAT_SM controlState)
   {
     boilerTemp = 0.0;
   }
-  return boilerTemp;
+  terminal.println("Bolier temp:");
+  terminal.println(boilerTemp);
+  terminal.flush();
 }
 
 void setup() {
