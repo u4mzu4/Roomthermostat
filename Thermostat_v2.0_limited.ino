@@ -521,7 +521,7 @@ void Draw_Info()
   strcat(bme280String, "°C");
   dtostrf(transData[0], 4, 1, transDataString0);
   strcat(transDataString0, "°C");
-  dtostrf(transData[1], 4, 1, transDataString1);
+  dtostrf(transData[1]+OFFSET, 4, 1, transDataString1);
   strcat(transDataString1, "°C");
   dtostrf(waterTemperature, 4, 1, watertempString);
   strcat(watertempString, "°C");
