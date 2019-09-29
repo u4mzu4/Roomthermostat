@@ -67,6 +67,8 @@ enum SETTING_SM {
 #define FLOOR_TEMP 40.0
 #define MAXWATERTEMP 36.0
 #define NROFTRANSM 2
+#define OFFSET 2.0
+
 
 //Global variables
 float waterTemperature;
@@ -584,7 +586,7 @@ void ReadTransmitter()
     terminal.println("Transmitter1 error");
     terminal.flush();
   }
-  kitchenTemp=transData[1];
+  kitchenTemp=transData[1]+OFFSET;
   Blynk.virtualWrite(V11, kitchenTemp);
   if (setControlBase == 2)
   {
