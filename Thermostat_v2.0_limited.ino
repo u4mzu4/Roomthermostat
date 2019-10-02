@@ -868,7 +868,7 @@ float CalculateBoilerTemp(HEAT_SM controlState)
 void ProcessOpenTherm(bool isOnlyFeed, bool tempCalcNeeded)
 {
   unsigned long response;
-  float boilerTemperature
+  float boilerTemperature;
   
   if (isOnlyFeed)
   {
