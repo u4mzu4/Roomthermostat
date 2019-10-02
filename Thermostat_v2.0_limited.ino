@@ -88,6 +88,7 @@ bool floorON = 0;
 bool radiatorON = 0;
 bool heatingON = 1;
 bool disableMainTask = 0;
+HEAT_SM heatstate = OFF;
 
 //Init services
 strDateTime dateTime;
@@ -603,7 +604,6 @@ void ReadTransmitter()
 void ManageHeating()
 {
   static unsigned long aftercirc;
-  static HEAT_SM heatstate = OFF;
   static HEAT_SM laststate;
 
   if (!heatingON)
@@ -837,12 +837,12 @@ void IRAM_ATTR handleInterrupt() {
   ot.handleInterrupt();
 }
 
-float CalculateBoilerTemp(HEAT_SM controlState)
+float CalculateBoilerTemp()
 {
   float boilerTemp;
   float errorSignal;
   
-  if (controlState == FLOOR_ON)
+  if (heatstate == FLOOR_ON)
   {
     errorSignal = setFloorTemp + HYSTERESIS - kitchenTemp;
     boilerTemp = 30.0 + errorSignal*50.0;
@@ -876,12 +876,12 @@ void ProcessOpenTherm(bool isOnlyFeed, bool tempCalcNeeded)
   }
   else if (tempCalcNeeded)
   {
-    boilerTemperature = CalculateBoilerTemp(heatstate);
-    response = ot.sendRequest(buildSetBoilerTemperatureRequest(boilerTemperature));
+    boilerTemperature = CalculateBoilerTemp();
+    response = ot.sendRequest(ot.buildSetBoilerTemperatureRequest(boilerTemperature));
   }
   else
   {
-    response = ot.sendRequest(buildSetBoilerTemperatureRequest(0.0));
+    response = ot.sendRequest(ot.buildSetBoilerTemperatureRequest(0.0));
   }
   
   if(!ot.isValidResponse(response))
