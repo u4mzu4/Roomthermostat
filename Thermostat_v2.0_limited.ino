@@ -614,7 +614,7 @@ void ManageHeating()
     }
     else
     {
-      ot.setBoilerTemperature(0.0);
+      ProcessOpenTherm(0, 0);
       digitalWrite(RELAYPIN1, 0);
       digitalWrite(RELAYPIN2, 0);
       boilerON = 0;
@@ -634,7 +634,7 @@ void ManageHeating()
     {
     if (laststate!=OFF)
     {
-      ot.setBoilerTemperature(0.0);
+      ProcessOpenTherm(0, 0);
       digitalWrite(RELAYPIN1, 0);
       digitalWrite(RELAYPIN2, 0);
       boilerON = 0;
@@ -671,7 +671,7 @@ void ManageHeating()
     
     case RADIATOR_ON:
     {
-     ot.setBoilerTemperature(CalculateBoilerTemp(heatstate));
+     ProcessOpenTherm(0, 1);
      if (kitchenTemp < (setFloorTemp - HYSTERESIS))
      {
       digitalWrite(RELAYPIN1, 1);
@@ -683,7 +683,7 @@ void ManageHeating()
      }
      if (actualTemperature > (setValue + HYSTERESIS))
      {
-      ot.setBoilerTemperature(0.0);
+      ProcessOpenTherm(0, 0);
       digitalWrite(RELAYPIN1, 1);
       digitalWrite(RELAYPIN2, 0);
       boilerON = 0;
@@ -715,7 +715,7 @@ void ManageHeating()
 
     case FLOOR_ON:
     {
-     ot.setBoilerTemperature(CalculateBoilerTemp(heatstate));
+     ProcessOpenTherm(0, 1);
      if (actualTemperature < (setValue - HYSTERESIS))
      {
       heatstate = ALL_ON;
@@ -727,7 +727,7 @@ void ManageHeating()
      }
      if ((kitchenTemp > (setFloorTemp + HYSTERESIS))||(waterTemperature > MAXWATERTEMP))
      {
-      ot.setBoilerTemperature(0.0);
+      ProcessOpenTherm(0, 0);
       boilerON = 0;
       heatstate = PUMPOVERRUN;
       laststate = FLOOR_ON;
@@ -738,7 +738,7 @@ void ManageHeating()
     
     case ALL_ON:
     {
-     ot.setBoilerTemperature(CalculateBoilerTemp(heatstate));
+     ProcessOpenTherm(0, 1);
      if (actualTemperature > (setValue + HYSTERESIS))
      {
       heatstate = FLOOR_ON;
@@ -814,7 +814,7 @@ void MainTask()
     ReadTransmitter();
     ManageHeating();
     Draw_RoomTemp();
-    ot.setBoilerStatus(1, 1, 0); //feed OpenTherm
+    ProcessOpenTherm(1, 0); //feed OpenTherm
     tasktime=millis()-tic;
     if (tasktime>maxtask)
     {
@@ -863,6 +863,33 @@ float CalculateBoilerTemp(HEAT_SM controlState)
   terminal.println("Bolier temp:");
   terminal.println(boilerTemp);
   terminal.flush();
+}
+
+void ProcessOpenTherm(bool isOnlyFeed, bool tempCalcNeeded)
+{
+  unsigned long response;
+  float boilerTemperature
+  
+  if (isOnlyFeed)
+  {
+    response = ot.setBoilerStatus(1, 1, 0);
+  }
+  else if (tempCalcNeeded)
+  {
+    boilerTemperature = CalculateBoilerTemp(heatstate);
+    response = ot.sendRequest(buildSetBoilerTemperatureRequest(boilerTemperature));
+  }
+  else
+  {
+    response = ot.sendRequest(buildSetBoilerTemperatureRequest(0.0));
+  }
+  
+  if(!ot.isValidResponse(response))
+  {
+    Encoder.writeLEDR(0xFF);
+    terminal.println("OpenTherm error");
+    terminal.flush();
+  }
 }
 
 void setup() {
