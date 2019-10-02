@@ -845,7 +845,7 @@ float CalculateBoilerTemp(HEAT_SM controlState)
   if (controlState == FLOOR_ON)
   {
     errorSignal = setFloorTemp + HYSTERESIS - kitchenTemp;
-    boilerTemp = setFloorTemp + 8.0 + errorSignal*50.0;
+    boilerTemp = 30.0 + errorSignal*50.0;
   }
   else
   {
