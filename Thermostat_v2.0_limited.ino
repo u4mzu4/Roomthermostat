@@ -877,7 +877,7 @@ void ProcessOpenTherm(bool isOnlyFeed, float temperatureRequest)
     }
   }
 }
-void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit);
+void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
 {
   if (errorCounter < errorLimit)
   {
