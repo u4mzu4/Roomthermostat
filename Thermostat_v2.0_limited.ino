@@ -47,6 +47,14 @@ enum SETTING_SM {
   THERMO_SET= 8,
   R3S3RV3D  = 9
   };
+  
+  enum ERROR_T {
+  DS18B20_ERROR	= 0,
+  BME280_ERROR	= 1,
+  TRANSM0_ERROR	= 2,
+  TRANSM1_ERROR	= 3,
+  OT_ERROR	= 4
+  };
 
 
 //Defines
@@ -130,13 +138,7 @@ void GetWaterTemp()
     lastvalidTemperature = waterTemperature;
     ds18b20Errorcounter = 0;
   }
-  if (ds18b20Errorcounter > 4)
-  {
-    Encoder.writeLEDR(0xFF);
-    terminal.println("DS18B20 error");
-    terminal.flush();
-  }
-  
+  ErrorManager(DS18B20_ERROR, ds18b20Errorcounter, 5);
   Blynk.virtualWrite(V10, waterTemperature);
   //Serial.println(waterTemperature);
 }
@@ -172,15 +174,7 @@ void ReadBME280()
   else {
     lastvalidHumidity = actualHumidity;
   }
-  if (bmeErrorcounter > 4)
-  {
-    setControlBase = 2;
-    Blynk.virtualWrite(V12, setControlBase);
-    Encoder.writeLEDR(0xFF);
-    terminal.println("BME280 error");
-    terminal.flush();
-  }
-  
+  ErrorManager(BME280_ERROR, bmeErrorcounter, 5);
   Blynk.virtualWrite(V14,bmeTemperature);
   Blynk.virtualWrite(V3, actualHumidity);
   Blynk.virtualWrite(V4, actualPressure);
@@ -572,20 +566,8 @@ void ReadTransmitter()
       transmErrorcounter[i] = 0;
     }
   }
-  if (transmErrorcounter[0] > 4)
-  {
-    setControlBase = 1;
-    Blynk.virtualWrite(V12, setControlBase);
-    Encoder.writeLEDR(0xFF);
-    terminal.println("Transmitter0 error");
-    terminal.flush();
-  }
-  if (transmErrorcounter[1] > 4)
-  {
-    Encoder.writeLEDR(0xFF);
-    terminal.println("Transmitter1 error");
-    terminal.flush();
-  }
+  ErrorManager(TRANSM0_ERROR, transmErrorcounter[0], 5);
+  ErrorManager(TRANSM1_ERROR, transmErrorcounter[1], 5);
   kitchenTemp=transData[1]+OFFSET;
   Blynk.virtualWrite(V11, kitchenTemp);
   if (setControlBase == 2)
@@ -853,7 +835,7 @@ float CalculateBoilerTemp(HEAT_SM controlState)
   if (controlState == FLOOR_ON)
   {
     errorSignal = setFloorTemp + HYSTERESIS - kitchenTemp;
-    boilerTemp = setFloorTemp + 8.0 + errorSignal*50.0;
+    boilerTemp = 30.0 + errorSignal*50.0;
   }
   else
   {
@@ -876,6 +858,7 @@ float CalculateBoilerTemp(HEAT_SM controlState)
 void ProcessOpenTherm(bool isOnlyFeed, float temperatureRequest)
 {
   unsigned long response;
+  static int otErrorCounter = 0;
   
   if (isOnlyFeed)
   {
@@ -888,10 +871,61 @@ void ProcessOpenTherm(bool isOnlyFeed, float temperatureRequest)
   
   if(!ot.isValidResponse(response))
   {
-    Encoder.writeLEDR(0xFF);
-    terminal.println("OpenTherm error");
-    terminal.flush();
+    otErrorCounter++;
   }
+  else
+  {
+    otErrorCounter=0;
+  }
+  ErrorManager(OT_ERROR, otErrorCounter, 5);
+}
+
+void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit);
+{
+  if (errorCounter < errorLimit)
+  {
+    return;
+  }
+
+  Encoder.writeLEDR(0xFF);
+
+  switch (errorID)
+  {
+    case DS18B20_ERROR:
+    {
+      terminal.println("DS18B20 error");
+      break;
+    }
+    case BME280_ERROR:
+    {
+      setControlBase = 2;
+      Blynk.virtualWrite(V12, setControlBase);
+      terminal.println("BME280 error");
+      break;
+    }
+    case TRANSM0_ERROR:
+    {
+      setControlBase = 1;
+      Blynk.virtualWrite(V12, setControlBase);
+      terminal.println("Transmitter0 error");
+      break;
+    }
+    case TRANSM1_ERROR:
+    {
+      terminal.println("Transmitter1 error");
+      break;
+    }
+    case OT_ERROR:
+    {
+      terminal.println("OpenTherm  error");
+      break;
+    }
+    default:
+    {
+      break;
+    }
+  }
+  terminal.flush();
 }
 
 void setup() {
