@@ -853,7 +853,7 @@ void ProcessOpenTherm(bool isOnlyFeed, float temperatureRequest)
 {
   unsigned long request;
   unsigned long response;
-  static int otErrorCounter = 0;
+  int otErrorCounter = 0;
   
   if (isOnlyFeed)
   {
