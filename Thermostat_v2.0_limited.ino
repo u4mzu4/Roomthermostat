@@ -587,7 +587,6 @@ void ManageHeating()
   static unsigned long aftercirc;
   static HEAT_SM heatstate = OFF;
   static HEAT_SM laststate;
-  float boilerTemperature;
 
   if (!heatingON)
   {
@@ -632,8 +631,7 @@ void ManageHeating()
     if (actualTemperature < (setValue - HYSTERESIS))
     {
       heatstate = RADIATOR_ON;
-      boilerTemperature=CalculateBoilerTemp(heatstate);
-      ProcessOpenTherm(0, boilerTemperature);
+      ProcessOpenTherm(0, CalculateBoilerTemp(heatstate));
       digitalWrite(RELAYPIN2, 1);
       boilerON = 1;
       radiatorON = 1;
@@ -644,8 +642,7 @@ void ManageHeating()
     if (kitchenTemp < (setFloorTemp - HYSTERESIS))
     {
       heatstate = FLOOR_ON;
-      boilerTemperature=CalculateBoilerTemp(heatstate);
-      ProcessOpenTherm(0, boilerTemperature);
+      ProcessOpenTherm(0, CalculateBoilerTemp(heatstate));
       digitalWrite(RELAYPIN1, 1);
       boilerON = 1;
       floorON = 1;
@@ -658,8 +655,7 @@ void ManageHeating()
     
     case RADIATOR_ON:
     {
-     boilerTemperature=CalculateBoilerTemp(heatstate);
-     ProcessOpenTherm(0, boilerTemperature);
+     ProcessOpenTherm(0, CalculateBoilerTemp(heatstate));
      if (kitchenTemp < (setFloorTemp - HYSTERESIS))
      {
       digitalWrite(RELAYPIN1, 1);
@@ -703,8 +699,7 @@ void ManageHeating()
 
     case FLOOR_ON:
     {
-     boilerTemperature=CalculateBoilerTemp(heatstate);
-     ProcessOpenTherm(0, boilerTemperature);
+     ProcessOpenTherm(0, CalculateBoilerTemp(heatstate));
      if (actualTemperature < (setValue - HYSTERESIS))
      {
       heatstate = ALL_ON;
@@ -727,8 +722,7 @@ void ManageHeating()
     
     case ALL_ON:
     {
-     boilerTemperature=CalculateBoilerTemp(heatstate);
-     ProcessOpenTherm(0, boilerTemperature);
+     ProcessOpenTherm(0, CalculateBoilerTemp(heatstate));
      if (actualTemperature > (setValue + HYSTERESIS))
      {
       heatstate = FLOOR_ON;
