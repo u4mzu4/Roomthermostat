@@ -88,7 +88,6 @@ bool floorON = 0;
 bool radiatorON = 0;
 bool heatingON = 1;
 bool disableMainTask = 0;
-HEAT_SM heatstate = OFF;
 
 //Init services
 strDateTime dateTime;
@@ -604,7 +603,9 @@ void ReadTransmitter()
 void ManageHeating()
 {
   static unsigned long aftercirc;
+  static HEAT_SM heatstate = OFF;
   static HEAT_SM laststate;
+  float boilerTemperature;
 
   if (!heatingON)
   {
@@ -614,7 +615,7 @@ void ManageHeating()
     }
     else
     {
-      ProcessOpenTherm(0, 0);
+      ProcessOpenTherm(0, 0.0);
       digitalWrite(RELAYPIN1, 0);
       digitalWrite(RELAYPIN2, 0);
       boilerON = 0;
@@ -634,7 +635,7 @@ void ManageHeating()
     {
     if (laststate!=OFF)
     {
-      ProcessOpenTherm(0, 0);
+      ProcessOpenTherm(0, 0.0);
       digitalWrite(RELAYPIN1, 0);
       digitalWrite(RELAYPIN2, 0);
       boilerON = 0;
@@ -649,6 +650,8 @@ void ManageHeating()
     if (actualTemperature < (setValue - HYSTERESIS))
     {
       heatstate = RADIATOR_ON;
+      boilerTemperature=CalculateBoilerTemp(heatstate);
+      ProcessOpenTherm(0, boilerTemperature);
       digitalWrite(RELAYPIN2, 1);
       boilerON = 1;
       radiatorON = 1;
@@ -659,6 +662,8 @@ void ManageHeating()
     if (kitchenTemp < (setFloorTemp - HYSTERESIS))
     {
       heatstate = FLOOR_ON;
+      boilerTemperature=CalculateBoilerTemp(heatstate);
+      ProcessOpenTherm(0, boilerTemperature);
       digitalWrite(RELAYPIN1, 1);
       boilerON = 1;
       floorON = 1;
@@ -671,7 +676,8 @@ void ManageHeating()
     
     case RADIATOR_ON:
     {
-     ProcessOpenTherm(0, 1);
+     boilerTemperature=CalculateBoilerTemp(heatstate);
+     ProcessOpenTherm(0, boilerTemperature);
      if (kitchenTemp < (setFloorTemp - HYSTERESIS))
      {
       digitalWrite(RELAYPIN1, 1);
@@ -683,7 +689,7 @@ void ManageHeating()
      }
      if (actualTemperature > (setValue + HYSTERESIS))
      {
-      ProcessOpenTherm(0, 0);
+      ProcessOpenTherm(0, 0.0);
       digitalWrite(RELAYPIN1, 1);
       digitalWrite(RELAYPIN2, 0);
       boilerON = 0;
@@ -715,7 +721,8 @@ void ManageHeating()
 
     case FLOOR_ON:
     {
-     ProcessOpenTherm(0, 1);
+     boilerTemperature=CalculateBoilerTemp(heatstate);
+     ProcessOpenTherm(0, boilerTemperature);
      if (actualTemperature < (setValue - HYSTERESIS))
      {
       heatstate = ALL_ON;
@@ -727,7 +734,7 @@ void ManageHeating()
      }
      if ((kitchenTemp > (setFloorTemp + HYSTERESIS))||(waterTemperature > MAXWATERTEMP))
      {
-      ProcessOpenTherm(0, 0);
+      ProcessOpenTherm(0, 0.0);
       boilerON = 0;
       heatstate = PUMPOVERRUN;
       laststate = FLOOR_ON;
@@ -738,7 +745,8 @@ void ManageHeating()
     
     case ALL_ON:
     {
-     ProcessOpenTherm(0, 1);
+     boilerTemperature=CalculateBoilerTemp(heatstate);
+     ProcessOpenTherm(0, boilerTemperature);
      if (actualTemperature > (setValue + HYSTERESIS))
      {
       heatstate = FLOOR_ON;
@@ -814,7 +822,7 @@ void MainTask()
     ReadTransmitter();
     ManageHeating();
     Draw_RoomTemp();
-    ProcessOpenTherm(1, 0); //feed OpenTherm
+    ProcessOpenTherm(1, 0.0); //feed OpenTherm
     tasktime=millis()-tic;
     if (tasktime>maxtask)
     {
@@ -837,15 +845,15 @@ void IRAM_ATTR handleInterrupt() {
   ot.handleInterrupt();
 }
 
-float CalculateBoilerTemp()
+float CalculateBoilerTemp(HEAT_SM controlState)
 {
   float boilerTemp;
   float errorSignal;
   
-  if (heatstate == FLOOR_ON)
+  if (controlState == FLOOR_ON)
   {
     errorSignal = setFloorTemp + HYSTERESIS - kitchenTemp;
-    boilerTemp = 30.0 + errorSignal*50.0;
+    boilerTemp = setFloorTemp + 8.0 + errorSignal*50.0;
   }
   else
   {
@@ -865,23 +873,17 @@ float CalculateBoilerTemp()
   terminal.flush();
 }
 
-void ProcessOpenTherm(bool isOnlyFeed, bool tempCalcNeeded)
+void ProcessOpenTherm(bool isOnlyFeed, float temperatureRequest)
 {
   unsigned long response;
-  float boilerTemperature;
   
   if (isOnlyFeed)
   {
     response = ot.setBoilerStatus(1, 1, 0);
   }
-  else if (tempCalcNeeded)
-  {
-    boilerTemperature = CalculateBoilerTemp();
-    response = ot.sendRequest(ot.buildSetBoilerTemperatureRequest(boilerTemperature));
-  }
   else
   {
-    response = ot.sendRequest(ot.buildSetBoilerTemperatureRequest(0.0));
+    response = ot.sendRequest(ot.buildSetBoilerTemperatureRequest(temperatureRequest));
   }
   
   if(!ot.isValidResponse(response))
