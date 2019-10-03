@@ -851,29 +851,32 @@ float CalculateBoilerTemp(HEAT_SM controlState)
 
 void ProcessOpenTherm(bool isOnlyFeed, float temperatureRequest)
 {
+  unsigned long request;
   unsigned long response;
   static int otErrorCounter = 0;
   
   if (isOnlyFeed)
   {
-    response = ot.setBoilerStatus(1, 1, 0);
+  	request = ot.buildSetBoilerStatusRequest(1, 1, 0, 0, 0);
   }
   else
   {
-    response = ot.sendRequest(ot.buildSetBoilerTemperatureRequest(temperatureRequest));
+    request = ot.buildSetBoilerTemperatureRequest(temperatureRequest);
   }
+  response = ot.sendRequest(request);
   
-  if(!ot.isValidResponse(response))
+  while(!ot.isValidResponse(response))
   {
     otErrorCounter++;
+    delay(100);
+    response = ot.sendRequest(request);
+    ErrorManager(OT_ERROR, otErrorCounter, 5);
+    if (otErrorCounter >= 5)
+    {
+      break;
+    }
   }
-  else
-  {
-    otErrorCounter=0;
-  }
-  ErrorManager(OT_ERROR, otErrorCounter, 5);
 }
-
 void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit);
 {
   if (errorCounter < errorLimit)
