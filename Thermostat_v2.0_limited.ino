@@ -803,14 +803,14 @@ void MainTask()
     if (tasktime>maxtask)
     {
       maxtask=tasktime;
-      terminal.println("Max task time:");
+      terminal.print("Max task time: ");
       terminal.println(maxtask);
       terminal.flush();
     }
     if (tasktime<mintask)
     {
       mintask=tasktime;
-      terminal.println("Min task time:");
+      terminal.print("Min task time: ");
       terminal.println(mintask);
       terminal.flush();
     }
@@ -829,7 +829,7 @@ float CalculateBoilerTemp(HEAT_SM controlState)
   if (controlState == FLOOR_ON)
   {
     errorSignal = setFloorTemp + HYSTERESIS - kitchenTemp;
-    boilerTemp = 30.0 + errorSignal*50.0;
+    boilerTemp = FLOOR_TEMP + errorSignal*50.0;
   }
   else
   {
@@ -844,7 +844,7 @@ float CalculateBoilerTemp(HEAT_SM controlState)
   {
     boilerTemp = 0.0;
   }
-  terminal.println("Bolier temp:");
+  terminal.print("Bolier temp: ");
   terminal.println(boilerTemp);
   terminal.flush();
 }
@@ -873,6 +873,13 @@ void ProcessOpenTherm(float temperatureRequest)
     ErrorManager(OT_ERROR, otErrorCounter, 5);
     if (otErrorCounter >= 5)
     {
+      terminal.print("Request: ");
+      terminal.println(request);
+      terminal.print("Response: ");
+      terminal.println(response);
+      terminal.print("Status: ");
+      terminal.println(ot.getLastResponseStatus());
+      terminal.flush();
       break;
     }
   }
