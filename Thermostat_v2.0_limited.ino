@@ -49,12 +49,14 @@ enum SETTING_SM {
   };
   
   enum ERROR_T {
-  DS18B20_ERROR	= 0,
-  BME280_ERROR	= 1,
-  TRANSM0_ERROR	= 2,
-  TRANSM1_ERROR	= 3,
-  OT_ERROR	= 4
+  DS18B20_ERROR = 0,
+  BME280_ERROR  = 1,
+  TRANSM0_ERROR = 2,
+  TRANSM1_ERROR = 3,
+  OT_ERROR      = 4,
+  ENCODER_ERROR = 5
   };
+
 
 
 //Defines
@@ -185,6 +187,7 @@ void ButtonCheck()
   static unsigned long stateStartTime;
   static DISPLAY_SM displayBox = INIT;
   static bool newSettings = 1;
+  int encoderErrorcounter = 0;
   
   switch (displayBox)
   {
@@ -204,6 +207,16 @@ void ButtonCheck()
         else if (Encoder.readStatus(PUSHP)){
           displayBox = INFO;
           stateStartTime = millis();
+        }
+      }
+      while ((int16_t)0 == Encoder.readCounterInt())
+      {
+        encoderErrorcounter++;
+        Encoder.writeCounter((int32_t)65535);
+        ErrorManager(ENCODER_ERROR, encoderErrorcounter, 5);
+        if (encoderErrorcounter >= 5)
+        {
+          break;
         }
       }
       break;
@@ -424,7 +437,14 @@ bool Draw_Setting(bool smReset)
       {
         dtostrf(setValue, 4, 1, actualString);
         strcat(actualString, "°C");
-        Encoder.writeCounter((int32_t)setValue*10);
+        if (prevState == FLOOR)
+        {
+          Encoder.writeCounter((int32_t)setFloorTemp*10);
+        }
+        else
+        {
+          Encoder.writeCounter((int32_t)setValue*10);
+        }
         Encoder.writeMax((int32_t)255); /* Set the maximum  */
         Encoder.writeMin((int32_t)180); /* Set the minimum threshold */
         Encoder.writeStep((int32_t)5);
@@ -829,13 +849,12 @@ float CalculateBoilerTemp(HEAT_SM controlState)
   if (controlState == FLOOR_ON)
   {
     errorSignal = setFloorTemp + HYSTERESIS - kitchenTemp;
-    boilerTemp = FLOOR_TEMP + errorSignal*50.0;
   }
   else
   {
     errorSignal = setValue + HYSTERESIS - actualTemperature;
-    boilerTemp = FLOOR_TEMP + errorSignal*100.0;
   }
+  boilerTemp = FLOOR_TEMP + errorSignal*100.0;
   if (boilerTemp > RADIATOR_TEMP)
   {
     boilerTemp = RADIATOR_TEMP;
@@ -922,6 +941,11 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
     case OT_ERROR:
     {
       terminal.println("OpenTherm  error");
+      break;
+    }
+    case ENCODER_ERROR:
+    {
+      terminal.println("Encoder  error");
       break;
     }
     default:
