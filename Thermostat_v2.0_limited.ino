@@ -69,6 +69,7 @@ enum SETTING_SM {
 #define AFTERCIRCTIME 300000 //5min
 #define BUTIMER   61
 #define MAINTIMER 60013 //1min
+#define OTTIMER 997 //1sec
 #define HYSTERESIS 0.1
 #define DS18B20_RESOLUTION 11
 #define DS18B20_DEFREG 0x2A80
@@ -90,6 +91,7 @@ float bmeTemperature;
 float setValue = 22.0;
 float setFloorTemp = 22.0;
 float kitchenTemp;
+float temperatureRequest;
 
 int setControlBase = 2;
 int buttonTime = 0;
@@ -616,7 +618,7 @@ void ManageHeating()
     }
     else
     {
-      ProcessOpenTherm(0.0);
+      temperatureRequest = 0.0;
       digitalWrite(RELAYPIN1, 0);
       digitalWrite(RELAYPIN2, 0);
       boilerON = 0;
@@ -636,7 +638,7 @@ void ManageHeating()
     {
     if (laststate!=OFF)
     {
-      ProcessOpenTherm(0.0);
+      temperatureRequest = 0.0;
       digitalWrite(RELAYPIN1, 0);
       digitalWrite(RELAYPIN2, 0);
       boilerON = 0;
@@ -651,7 +653,7 @@ void ManageHeating()
     if (actualTemperature < (setValue - HYSTERESIS))
     {
       heatstate = RADIATOR_ON;
-      ProcessOpenTherm(CalculateBoilerTemp(heatstate));
+      temperatureRequest = CalculateBoilerTemp(heatstate);
       digitalWrite(RELAYPIN2, 1);
       boilerON = 1;
       radiatorON = 1;
@@ -662,7 +664,7 @@ void ManageHeating()
     if (kitchenTemp < (setFloorTemp - HYSTERESIS))
     {
       heatstate = FLOOR_ON;
-      ProcessOpenTherm(CalculateBoilerTemp(heatstate));
+      temperatureRequest = CalculateBoilerTemp(heatstate);
       digitalWrite(RELAYPIN1, 1);
       boilerON = 1;
       floorON = 1;
@@ -675,7 +677,7 @@ void ManageHeating()
     
     case RADIATOR_ON:
     {
-     ProcessOpenTherm(CalculateBoilerTemp(heatstate));
+     temperatureRequest = CalculateBoilerTemp(heatstate);
      if (kitchenTemp < (setFloorTemp - HYSTERESIS))
      {
       digitalWrite(RELAYPIN1, 1);
@@ -687,7 +689,7 @@ void ManageHeating()
      }
      if (actualTemperature > (setValue + HYSTERESIS))
      {
-      ProcessOpenTherm(0.0);
+      temperatureRequest = 0.0;
       digitalWrite(RELAYPIN1, 1);
       digitalWrite(RELAYPIN2, 0);
       boilerON = 0;
@@ -719,7 +721,7 @@ void ManageHeating()
 
     case FLOOR_ON:
     {
-     ProcessOpenTherm(CalculateBoilerTemp(heatstate));
+     temperatureRequest = CalculateBoilerTemp(heatstate);
      if (actualTemperature < (setValue - HYSTERESIS))
      {
       heatstate = ALL_ON;
@@ -731,7 +733,7 @@ void ManageHeating()
      }
      if ((kitchenTemp > (setFloorTemp + HYSTERESIS))||(waterTemperature > MAXWATERTEMP))
      {
-      ProcessOpenTherm(0.0);
+      temperatureRequest = 0.0;
       boilerON = 0;
       heatstate = PUMPOVERRUN;
       laststate = FLOOR_ON;
@@ -742,7 +744,7 @@ void ManageHeating()
     
     case ALL_ON:
     {
-     ProcessOpenTherm(CalculateBoilerTemp(heatstate));
+     temperatureRequest = CalculateBoilerTemp(heatstate);
      if (actualTemperature > (setValue + HYSTERESIS))
      {
       heatstate = FLOOR_ON;
@@ -818,7 +820,7 @@ void MainTask()
     ReadTransmitter();
     ManageHeating();
     Draw_RoomTemp();
-    ProcessOpenTherm(-273.2); //feed OpenTherm
+    temperatureRequest = -273.2;
     tasktime=millis()-tic;
     if (tasktime>maxtask)
     {
@@ -868,7 +870,7 @@ float CalculateBoilerTemp(HEAT_SM controlState)
   terminal.flush();
 }
 
-void ProcessOpenTherm(float temperatureRequest)
+void ProcessOpenTherm()
 {
   unsigned long request;
   unsigned long response;
@@ -964,6 +966,7 @@ void setup() {
 
   timer.setInterval(BUTIMER,ButtonCheck);
   timer.setInterval(MAINTIMER,MainTask);
+  timer.setInterval(OTTIMER,ProcessOpenTherm);
   
   Serial.begin(115200);
   delay(100);
