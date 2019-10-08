@@ -820,7 +820,6 @@ void MainTask()
     ReadTransmitter();
     ManageHeating();
     Draw_RoomTemp();
-    temperatureRequest = -273.2;
     tasktime=millis()-tic;
     if (tasktime>maxtask)
     {
@@ -876,12 +875,14 @@ void ProcessOpenTherm()
   unsigned long response;
   int otErrorCounter = 0;
   
-  if (temperatureRequest < 0.0)
+  if (!boilerON)
   {
-  	request = ot.buildSetBoilerStatusRequest(1, 1, 0, 0, 0);
+    request = ot.buildSetBoilerStatusRequest(0, 1, 0, 0, 0);
   }
   else
   {
+    request = ot.buildSetBoilerStatusRequest(1, 1, 0, 0, 0);
+    response = ot.sendRequest(request);
     request = ot.buildSetBoilerTemperatureRequest(temperatureRequest);
   }
   response = ot.sendRequest(request);
