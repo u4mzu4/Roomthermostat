@@ -43,8 +43,7 @@ enum SETTING_SM {
   HOLIDAY   = 2,
   SOFA      = 3,
   CHILD     = 4,
-  THERMO    = 6,
-  THERMO_SET= 8,
+  THERMO_SET= 5,
   R3S3RV3D  = 9
   };
   
@@ -100,6 +99,7 @@ bool floorON = 0;
 bool radiatorON = 0;
 bool heatingON = 1;
 bool disableMainTask = 0;
+bool flameON = 0;
 
 //Init services
 strDateTime dateTime;
@@ -326,6 +326,7 @@ bool Draw_Setting(bool smReset)
   if (smReset)
   {
     settingState = RADIATOR;
+    prevState = RADIATOR;
     stateEnterTime = millis();
   }
   if (millis()-stateEnterTime > 2*TIMEOUT)
@@ -361,7 +362,7 @@ bool Draw_Setting(bool smReset)
         }
         if (Encoder.readStatus(PUSHP)){
           prevState = FLOOR;
-	        settingState = THERMO;
+	        settingState = THERMO_SET;
         }
       }
       break;
@@ -395,7 +396,8 @@ bool Draw_Setting(bool smReset)
         if (Encoder.readStatus(PUSHP)){
           setControlBase = 2;
           Blynk.virtualWrite(V12, setControlBase);
-          settingState = THERMO;
+          settingState = THERMO_SET;
+          prevState = CHILD;
         }
       }
       break;
@@ -411,20 +413,8 @@ bool Draw_Setting(bool smReset)
         if (Encoder.readStatus(PUSHP)){
           setControlBase = 1;
           Blynk.virtualWrite(V12, setControlBase);
-          settingState = THERMO;
-        }
-      }
-      break;
-    }
-
-    case THERMO:
-    {
-      Draw_Bitmap(32,0,thermometer_width, thermometer_height,thermometer_bits,0);
-
-      if (Encoder.updateStatus()) {
-        stateEnterTime = millis();
-        if (Encoder.readStatus(PUSHP)){
           settingState = THERMO_SET;
+          prevState = SOFA;
         }
       }
       break;
@@ -437,19 +427,20 @@ bool Draw_Setting(bool smReset)
       
       if (initSet)
       {
-        dtostrf(setValue, 4, 1, actualString);
-        strcat(actualString, "°C");
-        if (prevState == FLOOR)
+        if (FLOOR == prevState)
         {
+          dtostrf(setFloorTemp, 4, 1, actualString);
           Encoder.writeCounter((int32_t)setFloorTemp*10);
         }
         else
         {
+          dtostrf(setValue, 4, 1, actualString);
           Encoder.writeCounter((int32_t)setValue*10);
         }
         Encoder.writeMax((int32_t)255); /* Set the maximum  */
         Encoder.writeMin((int32_t)180); /* Set the minimum threshold */
         Encoder.writeStep((int32_t)5);
+        strcat(actualString, "°C");
         initSet = 0;
       }
       while (posCounter>0)
@@ -478,7 +469,7 @@ bool Draw_Setting(bool smReset)
         stateEnterTime = millis();
         if (Encoder.readStatus(PUSHP)){
           leaveMenu = 1;
-          if (prevState == FLOOR)
+          if (FLOOR == prevState)
           {
             setFloorTemp = rotaryPosition/10.0;
             Blynk.virtualWrite(V6, setFloorTemp);
@@ -494,6 +485,7 @@ bool Draw_Setting(bool smReset)
       {
         posCounter = 33;
         initSet = 1;
+        MainTask();
       }
       break;
     }
@@ -702,14 +694,14 @@ void ManageHeating()
       Blynk.virtualWrite(V9, radiatorON); 
       break;
      }
-     if (waterTemperature > MAXWATERTEMP)
+     if (flameON||(waterTemperature > MAXWATERTEMP))
      {
       digitalWrite(RELAYPIN1, 0);
       floorON = 0;
       Blynk.virtualWrite(V8, floorON);
       break;
      }
-     if (waterTemperature < (MAXWATERTEMP - 4.0))
+     if (!flameON)
      {
       digitalWrite(RELAYPIN1, 1);
       floorON = 1;
@@ -850,12 +842,13 @@ float CalculateBoilerTemp(HEAT_SM controlState)
   if (controlState == FLOOR_ON)
   {
     errorSignal = setFloorTemp + HYSTERESIS - kitchenTemp;
+    boilerTemp = 30 + errorSignal*50.0;
   }
   else
   {
     errorSignal = setValue + HYSTERESIS - actualTemperature;
+    boilerTemp = FLOOR_TEMP + errorSignal*100.0;
   }
-  boilerTemp = FLOOR_TEMP + errorSignal*100.0;
   if (boilerTemp > RADIATOR_TEMP)
   {
     boilerTemp = RADIATOR_TEMP;
@@ -883,6 +876,7 @@ void ProcessOpenTherm()
   {
     request = ot.buildSetBoilerStatusRequest(1, 1, 0, 0, 0);
     response = ot.sendRequest(request);
+    flameON = ot.isFlameOn(response);
     request = ot.buildSetBoilerTemperatureRequest(temperatureRequest);
   }
   response = ot.sendRequest(request);
@@ -890,7 +884,6 @@ void ProcessOpenTherm()
   while(!ot.isValidResponse(response))
   {
     otErrorCounter++;
-    delay(100);
     response = ot.sendRequest(request);
     ErrorManager(OT_ERROR, otErrorCounter, 5);
     if (otErrorCounter >= 5)
