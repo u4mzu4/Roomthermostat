@@ -119,7 +119,7 @@ void GetWaterTemp()
   static int ds18b20Errorcounter = 0;
   unsigned long DS18B20timeout = millis();
   
-  while (tempRaw == DS18B20_DEFREG)
+  while (DS18B20_DEFREG == tempRaw)
   {
     sensor.requestTemperaturesByAddress(sensorDeviceAddress);
     tempRaw = sensor.getTemp(sensorDeviceAddress);
@@ -544,7 +544,7 @@ void Draw_Info()
   u8g2.drawUTF8(0,50,"Watertemp:");  
   u8g2.drawUTF8(65,50,watertempString); // write water temperature
   u8g2.sendBuffer();          // transfer internal memory to the display
-  lastRefresh == dateTime.second;
+  lastRefresh = dateTime.second;
 }
 
 void ReadTransmitter() 
@@ -556,7 +556,7 @@ void ReadTransmitter()
   {
     webclient.begin(host[i]);
     webclient.setConnectTimeout(500);
-    if(webclient.GET() == HTTP_CODE_OK) 
+    if(HTTP_CODE_OK == webclient.GET()) 
     {
       transData[i] = webclient.getString().toFloat();
     }
@@ -580,7 +580,7 @@ void ReadTransmitter()
   ErrorManager(TRANSM1_ERROR, transmErrorcounter[1], 5);
   kitchenTemp=transData[1]+OFFSET;
   Blynk.virtualWrite(V11, kitchenTemp);
-  if (setControlBase == 2)
+  if (2 == setControlBase)
   {
     actualTemperature = transData[0];
   }
@@ -831,7 +831,7 @@ float CalculateBoilerTemp(HEAT_SM controlState)
   float boilerTemp;
   float errorSignal;
   
-  if (controlState == FLOOR_ON)
+  if (FLOOR_ON == controlState)
   {
     errorSignal = setFloorTemp + HYSTERESIS - kitchenTemp;
     boilerTemp = 30 + errorSignal*50.0;
