@@ -3,8 +3,7 @@
   BME280 + DS18B20 sensors
   2.42" OLED SSD1309
   I2C rotary (https://github.com/Fattoresaimon/I2CEncoderV2)
-  Blynk service
-  
+  Blynk service 
 */
 
 //Includes
@@ -34,7 +33,6 @@ enum HEAT_SM {
   FLOOR_ON    = 2,
   ALL_ON      = 3,
   PUMPOVERRUN = 4,
-  JOKER       = 9
   };
 
 enum SETTING_SM {
@@ -44,7 +42,6 @@ enum SETTING_SM {
   SOFA      = 3,
   CHILD     = 4,
   THERMO_SET= 5,
-  R3S3RV3D  = 9
   };
   
   enum ERROR_T {
@@ -93,7 +90,7 @@ float kitchenTemp;
 float temperatureRequest;
 
 int setControlBase = 2;
-int buttonTime = 0;
+
 bool boilerON = 0;
 bool floorON = 0;
 bool radiatorON = 0;
@@ -419,7 +416,6 @@ bool Draw_Setting(bool smReset)
       }
       break;
     }
-
     case THERMO_SET:
     {
       static unsigned int posCounter=33;
@@ -666,7 +662,6 @@ void ManageHeating()
     }
     break;
     }
-    
     case RADIATOR_ON:
     {
      temperatureRequest = CalculateBoilerTemp(heatstate);
@@ -710,7 +705,6 @@ void ManageHeating()
      }
      break;
     }
-
     case FLOOR_ON:
     {
      temperatureRequest = CalculateBoilerTemp(heatstate);
@@ -733,7 +727,6 @@ void ManageHeating()
      }
      break;
     }
-    
     case ALL_ON:
     {
      temperatureRequest = CalculateBoilerTemp(heatstate);
@@ -757,7 +750,6 @@ void ManageHeating()
      }
      break;
     }
-
     case PUMPOVERRUN:
     {
      if (laststate!=PUMPOVERRUN)
@@ -899,6 +891,7 @@ void ProcessOpenTherm()
     }
   }
 }
+
 void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
 {
   if (errorCounter < errorLimit)
