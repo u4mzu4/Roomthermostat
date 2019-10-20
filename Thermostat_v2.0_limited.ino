@@ -461,7 +461,7 @@ bool Draw_Setting(bool smReset)
         u8g2.setFont(u8g2_font_logisoso18_tf); // choose a suitable font
         u8g2.drawUTF8(60, 35, setString);
         u8g2.setFont(u8g2_font_t0_12_tf);
-        u8g2.drawUTF8(60, 52, "Actual:");
+        u8g2.drawUTF8(60, 52, "Current:");
         u8g2.drawUTF8(60, 64, actualString);
         u8g2.sendBuffer();
         if (Encoder.updateStatus()) {
@@ -997,7 +997,7 @@ String processor(const String& var)
       return (String(bmeTemperature, 1) + " °C");
       break;
     case 8:
-      return (String(transData[1], 1) + " °C");
+      return (String(transData[0], 1) + " °C");
       break;
     case 9:
       return (String(kitchenTemp, 1) + " °C");
@@ -1035,6 +1035,7 @@ String processor(const String& var)
 
 void SetupWebServer ()
 {
+  SPIFFS.begin(true);
   server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
     int paramsNr = request->params();
     if (4 == paramsNr)
