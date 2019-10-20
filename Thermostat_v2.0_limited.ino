@@ -1045,22 +1045,22 @@ void SetupWebServer ()
         if (String("p1") == p->name())
         {
           setValue = p->value().toFloat();
-          //Blynk.virtualWrite(V5, setValue);
+          Blynk.virtualWrite(V5, setValue);
         }
         if (String("p2") == p->name())
         {
           heatingON = (bool)(p->value().toInt());
-          //Blynk.virtualWrite(V2, heatingON);
+          Blynk.virtualWrite(V2, heatingON);
         }
         if (String("p3") == p->name())
         {
           setFloorTemp  = p->value().toFloat();
-          //Blynk.virtualWrite(V6, setFloorTemp);
+          Blynk.virtualWrite(V6, setFloorTemp);
         }
         if (String("p4") == p->name())
         {
           setControlBase  = p->value().toInt();
-          //Blynk.virtualWrite(V12, setControlBase);
+          Blynk.virtualWrite(V12, setControlBase);
         }
       }
     }
