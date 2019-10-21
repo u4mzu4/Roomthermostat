@@ -106,7 +106,6 @@ Adafruit_BME280 bme;
 U8G2_SSD1309_128X64_NONAME2_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE, SCL, SDA);
 NTPtime NTPhu("hu.pool.ntp.org");   // Choose server pool as required
 BlynkTimer timer;
-HTTPClient webclient;
 WidgetTerminal terminal(V19);
 OneWire oneWire(WATERPIN);
 DallasTemperature sensor(&oneWire);
@@ -557,6 +556,7 @@ void ReadTransmitter()
 
   for (int i = 0; i < NROFTRANSM; i++)
   {
+    HTTPClient webclient;
     webclient.begin(host[i]);
     webclient.setConnectTimeout(500);
     if (HTTP_CODE_OK == webclient.GET())
@@ -1139,6 +1139,7 @@ void setup() {
   Blynk.virtualWrite(V7, boilerON);
   Blynk.virtualWrite(V8, floorON);
   Blynk.virtualWrite(V9, radiatorON);
+  terminal.clear();
 
   ot.begin(handleInterrupt);
   SetupWebServer();
