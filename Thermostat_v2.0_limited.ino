@@ -1154,6 +1154,8 @@ void loop() {
   	{
   		server.end();
   		webserverIsRunning = 0;
+      terminal.println("WebServer is OFF");
+      terminal.flush();
   	}
     Blynk.run();
   }
