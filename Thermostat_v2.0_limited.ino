@@ -1142,19 +1142,27 @@ void setup() {
   terminal.clear();
 
   ot.begin(handleInterrupt);
-  SetupWebServer();
   MainTask();
 }
 
 void loop() {
+  static bool webserverIsRunning = 0;
+  
   if (Blynk.connected())
   {
+  	if (webserverIsRunning)
+  	{
+  		server.end();
+  		webserverIsRunning = 0;
+  	}
     Blynk.run();
   }
   else
   {
     Blynk.disconnect();
     delay(1000);
+    SetupWebServer();
+    webserverIsRunning = 1;
     Blynk.connect();
   }
   timer.run();
