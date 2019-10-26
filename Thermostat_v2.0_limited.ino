@@ -3,7 +3,9 @@
   BME280 + DS18B20 sensors
   2.42" OLED SSD1309
   I2C rotary (https://github.com/Fattoresaimon/I2CEncoderV2)
+  OpenTherm boiler interface
   Blynk service
+  ESP Async webserver if Blynk not available (https://github.com/me-no-dev/ESPAsyncWebServer)
 */
 
 //Includes
@@ -1035,7 +1037,11 @@ String processor(const String& var)
 
 void SetupWebServer ()
 {
-  SPIFFS.begin(true);
+  static bool SPIFFSinited = 0;
+  if (!SPIFFSinited)
+  {
+    SPIFFSinited = SPIFFS.begin(true);
+  }
   server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
     int paramsNr = request->params();
     if (4 == paramsNr)
@@ -1147,16 +1153,16 @@ void setup() {
 
 void loop() {
   static bool webserverIsRunning = 0;
-  
+
   if (Blynk.connected())
   {
-  	if (webserverIsRunning)
-  	{
-  		server.end();
-  		webserverIsRunning = 0;
+    if (webserverIsRunning)
+    {
+      server.end();
+      webserverIsRunning = 0;
       terminal.println("WebServer is OFF");
       terminal.flush();
-  	}
+    }
     Blynk.run();
   }
   else
