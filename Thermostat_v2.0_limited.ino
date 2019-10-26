@@ -145,7 +145,6 @@ void GetWaterTemp()
   }
   ErrorManager(DS18B20_ERROR, ds18b20Errorcounter, 5);
   Blynk.virtualWrite(V10, waterTemperature);
-  //Serial.println(waterTemperature);
 }
 
 void ReadBME280()
@@ -263,8 +262,6 @@ void Draw_RoomTemp()
 
   dtostrf(actualTemperature, 4, 1, temperatureString);
   strcat(temperatureString, "°C");
-  //Serial.println(temperatureString);
-  //Serial.println();
   u8g2.setContrast(0);
   u8g2.clearBuffer();          // clear the internal memory
   u8g2.setFont(u8g2_font_logisoso34_tf); // choose a suitable font
@@ -1102,8 +1099,6 @@ void setup() {
   timer.setInterval(MAINTIMER, MainTask);
   timer.setInterval(OTTIMER, ProcessOpenTherm);
 
-  Serial.begin(115200);
-  delay(100);
   Wire.begin(SDA, SCL);
   Wire.setClock(400000);
   delay(100);
@@ -1130,14 +1125,11 @@ void setup() {
   unsigned long wifitimeout = millis();
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    //Serial.print(".");
     if (millis() - wifitimeout > TIMEOUT)
     {
       break;
     }
   }
-  //Serial.println("");
-  //Serial.println("Wifi connected!");
 
   Blynk.config(auth);
   Blynk.connect();
