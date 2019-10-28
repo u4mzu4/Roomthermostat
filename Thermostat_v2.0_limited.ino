@@ -3,7 +3,8 @@
   BME280 + DS18B20 sensors
   2.42" OLED SSD1309
   I2C rotary (https://github.com/Fattoresaimon/I2CEncoderV2)
-  OpenTherm boiler interface
+  OpenTherm boiler interface (http://ihormelnyk.com/opentherm_adapter)
+  OpenTherm library (https://github.com/ihormelnyk/opentherm_library/)
   Blynk service
   ESP Async webserver if Blynk not available (https://github.com/me-no-dev/ESPAsyncWebServer)
 */
