@@ -3,7 +3,10 @@
   BME280 + DS18B20 sensors
   2.42" OLED SSD1309
   I2C rotary (https://github.com/Fattoresaimon/I2CEncoderV2)
+  OpenTherm boiler interface (http://ihormelnyk.com/opentherm_adapter)
+  OpenTherm library (https://github.com/ihormelnyk/opentherm_library/)
   Blynk service
+  ESP Async webserver if Blynk not available (https://github.com/me-no-dev/ESPAsyncWebServer)
 */
 
 //Includes
@@ -16,6 +19,8 @@
 #include <i2cEncoderLibV2.h>
 #include <icons.h>
 #include <OpenTherm.h>
+#include "ESPAsyncWebServer.h"
+#include "SPIFFS.h"
 
 //Enum
 enum DISPLAY_SM {
@@ -104,13 +109,13 @@ Adafruit_BME280 bme;
 U8G2_SSD1309_128X64_NONAME2_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE, SCL, SDA);
 NTPtime NTPhu("hu.pool.ntp.org");   // Choose server pool as required
 BlynkTimer timer;
-HTTPClient webclient;
 WidgetTerminal terminal(V19);
 OneWire oneWire(WATERPIN);
 DallasTemperature sensor(&oneWire);
 DeviceAddress sensorDeviceAddress;
 i2cEncoderLibV2 Encoder(ENCODER_ADDRESS);
 OpenTherm ot(OTPIN_IN, OTPIN_OUT);
+AsyncWebServer server(80);
 
 void GetWaterTemp()
 {
@@ -141,7 +146,6 @@ void GetWaterTemp()
   }
   ErrorManager(DS18B20_ERROR, ds18b20Errorcounter, 5);
   Blynk.virtualWrite(V10, waterTemperature);
-  //Serial.println(waterTemperature);
 }
 
 void ReadBME280()
@@ -259,8 +263,6 @@ void Draw_RoomTemp()
 
   dtostrf(actualTemperature, 4, 1, temperatureString);
   strcat(temperatureString, "°C");
-  //Serial.println(temperatureString);
-  //Serial.println();
   u8g2.setContrast(0);
   u8g2.clearBuffer();          // clear the internal memory
   u8g2.setFont(u8g2_font_logisoso34_tf); // choose a suitable font
@@ -458,7 +460,7 @@ bool Draw_Setting(bool smReset)
         u8g2.setFont(u8g2_font_logisoso18_tf); // choose a suitable font
         u8g2.drawUTF8(60, 35, setString);
         u8g2.setFont(u8g2_font_t0_12_tf);
-        u8g2.drawUTF8(60, 52, "Actual:");
+        u8g2.drawUTF8(60, 52, "Current:");
         u8g2.drawUTF8(60, 64, actualString);
         u8g2.sendBuffer();
         if (Encoder.updateStatus()) {
@@ -554,6 +556,7 @@ void ReadTransmitter()
 
   for (int i = 0; i < NROFTRANSM; i++)
   {
+    HTTPClient webclient;
     webclient.begin(host[i]);
     webclient.setConnectTimeout(500);
     if (HTTP_CODE_OK == webclient.GET())
@@ -945,6 +948,148 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
   terminal.flush();
 }
 
+String processor(const String& var)
+{
+  String tempvar = var;
+  tempvar.remove(2);
+  int numberofPH = tempvar.toInt();
+  switch (numberofPH) {
+    case 1:
+      return (String(actualHumidity, 0) + " %%");
+      break;
+    case 2:
+      return (String(actualPressure, 0) + " mbar");
+      break;
+    case 3:
+      return (String(actualTemperature, 1) + " °C");
+      break;
+    case 4:
+      if (radiatorON)
+      {
+        return String("on");
+      }
+      else
+      {
+        return String("off");
+      }
+      break;
+    case 5:
+      if (boilerON)
+      {
+        return String("on");
+      }
+      else
+      {
+        return String("off");
+      }
+      break;
+    case 6:
+      if (floorON)
+      {
+        return String("on");
+      }
+      else
+      {
+        return String("off");
+      }
+      break;
+    case 7:
+      return (String(bmeTemperature, 1) + " °C");
+      break;
+    case 8:
+      return (String(transData[0], 1) + " °C");
+      break;
+    case 9:
+      return (String(kitchenTemp, 1) + " °C");
+      break;
+    case 10:
+      return (String(waterTemperature, 1) + " °C");
+      break;
+    case 11:
+      return (String(setValue, 1));
+      break;
+    case 12:
+      return (String(setFloorTemp, 1));
+      break;
+    case 13:
+      if (setControlBase == 1)
+      {
+        return String("checked");
+      }
+    case 14:
+      if (setControlBase == 2)
+      {
+        return String("checked");
+      }
+    case 15:
+      if (heatingON)
+      {
+        return String("checked");
+      }
+    default:
+      return String();
+      break;
+  }
+  return String();
+}
+
+void SetupWebServer ()
+{
+  static bool SPIFFSinited = 0;
+  if (!SPIFFSinited)
+  {
+    SPIFFSinited = SPIFFS.begin(true);
+  }
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
+    int paramsNr = request->params();
+    if (4 == paramsNr)
+    {
+      for (int j = 0; j < paramsNr; j++)
+      {
+        AsyncWebParameter* p = request->getParam(j);
+        if (String("p1") == p->name())
+        {
+          setValue = p->value().toFloat();
+          Blynk.virtualWrite(V5, setValue);
+        }
+        if (String("p2") == p->name())
+        {
+          heatingON = (bool)(p->value().toInt());
+          Blynk.virtualWrite(V2, heatingON);
+        }
+        if (String("p3") == p->name())
+        {
+          setFloorTemp  = p->value().toFloat();
+          Blynk.virtualWrite(V6, setFloorTemp);
+        }
+        if (String("p4") == p->name())
+        {
+          setControlBase  = p->value().toInt();
+          Blynk.virtualWrite(V12, setControlBase);
+        }
+      }
+    }
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+  });
+
+  // Route to load style.css file
+  server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest * request) {
+    request->send(SPIFFS, "/style.css", "text/css");
+  });
+
+  // Route to load circle.css file
+  server.on("/circle.css", HTTP_GET, [](AsyncWebServerRequest * request) {
+    request->send(SPIFFS, "/circle.css", "text/css");
+  });
+
+  server.on("/script.js", HTTP_GET, [](AsyncWebServerRequest * request) {
+    request->send(SPIFFS, "/script.js", "text/javascript");
+  });
+  server.begin();
+}
+
+
+
 void setup() {
   pinMode(RELAYPIN1, OUTPUT);
   pinMode(RELAYPIN2, OUTPUT);
@@ -955,8 +1100,6 @@ void setup() {
   timer.setInterval(MAINTIMER, MainTask);
   timer.setInterval(OTTIMER, ProcessOpenTherm);
 
-  Serial.begin(115200);
-  delay(100);
   Wire.begin(SDA, SCL);
   Wire.setClock(400000);
   delay(100);
@@ -983,14 +1126,11 @@ void setup() {
   unsigned long wifitimeout = millis();
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    //Serial.print(".");
     if (millis() - wifitimeout > TIMEOUT)
     {
       break;
     }
   }
-  //Serial.println("");
-  //Serial.println("Wifi connected!");
 
   Blynk.config(auth);
   Blynk.connect();
@@ -998,21 +1138,32 @@ void setup() {
   Blynk.virtualWrite(V7, boilerON);
   Blynk.virtualWrite(V8, floorON);
   Blynk.virtualWrite(V9, radiatorON);
+  terminal.clear();
 
   ot.begin(handleInterrupt);
-
   MainTask();
 }
 
 void loop() {
+  static bool webserverIsRunning = 0;
+
   if (Blynk.connected())
   {
+    if (webserverIsRunning)
+    {
+      server.end();
+      webserverIsRunning = 0;
+      terminal.println("WebServer is OFF");
+      terminal.flush();
+    }
     Blynk.run();
   }
   else
   {
     Blynk.disconnect();
     delay(1000);
+    SetupWebServer();
+    webserverIsRunning = 1;
     Blynk.connect();
   }
   timer.run();
