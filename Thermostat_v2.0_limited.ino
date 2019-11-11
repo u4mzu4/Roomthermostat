@@ -19,8 +19,8 @@
 #include <i2cEncoderLibV2.h>
 #include <icons.h>
 #include <OpenTherm.h>
-#include "ESPAsyncWebServer.h"
-#include "SPIFFS.h"
+#include <ESPAsyncWebServer.h>
+#include <SPIFFS.h>
 
 //Enum
 enum DISPLAY_SM {
@@ -116,6 +116,8 @@ DeviceAddress sensorDeviceAddress;
 i2cEncoderLibV2 Encoder(ENCODER_ADDRESS);
 OpenTherm ot(OTPIN_IN, OTPIN_OUT);
 AsyncWebServer server(80);
+WiFiClient wclient;
+HTTPClient hclient;
 
 void GetWaterTemp()
 {
@@ -555,19 +557,18 @@ void ReadTransmitter()
   static int transmErrorcounter[NROFTRANSM] = {0, 0};
 
   for (int i = 0; i < NROFTRANSM; i++)
-  {
-    HTTPClient webclient;
-    webclient.begin(host[i]);
-    webclient.setConnectTimeout(500);
-    if (HTTP_CODE_OK == webclient.GET())
+  {    
+    hclient.begin(wclient, host[i]);
+    hclient.setConnectTimeout(500);
+    if (HTTP_CODE_OK == hclient.GET())
     {
-      transData[i] = webclient.getString().toFloat();
+      transData[i] = hclient.getString().toFloat();
     }
     else
     {
       transData[i] = 0.0;
     }
-    webclient.end();
+    hclient.end();
     if ((transData[i] < 10.0) || transData[i] > 84.0)
     {
       transData[i] = lastvalidtransTemp[i];
