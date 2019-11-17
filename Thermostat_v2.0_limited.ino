@@ -430,12 +430,12 @@ bool Draw_Setting(bool smReset)
           if (FLOOR == prevState)
           {
             dtostrf(setFloorTemp, 4, 1, actualString);
-            Encoder.writeCounter((int32_t)setFloorTemp * 10);
+            Encoder.writeCounter((int32_t)(setFloorTemp * 10));
           }
           else
           {
             dtostrf(setValue, 4, 1, actualString);
-            Encoder.writeCounter((int32_t)setValue * 10);
+            Encoder.writeCounter((int32_t)(setValue * 10));
           }
           Encoder.writeMax((int32_t)255); /* Set the maximum  */
           Encoder.writeMin((int32_t)180); /* Set the minimum threshold */
@@ -1104,7 +1104,7 @@ void setup() {
   Wire.begin(SDA, SCL);
   Wire.setClock(400000);
   delay(100);
-  bme.begin();
+  bme.begin(BME280_ADDRESS_ALTERNATE);
   delay(100);
   u8g2.begin();
   delay(100);
