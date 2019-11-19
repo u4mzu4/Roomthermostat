@@ -157,6 +157,7 @@ void ReadBME280()
   static float lastvalidPressure;
   static int bmeErrorcounter = 0;
 
+  bme.takeForcedMeasurement();
   bmeTemperature = bme.readTemperature();
   actualHumidity = bme.readHumidity();
   actualPressure = bme.readPressure() / 100.0F;
@@ -557,7 +558,7 @@ void ReadTransmitter()
   static int transmErrorcounter[NROFTRANSM] = {0, 0};
 
   for (int i = 0; i < NROFTRANSM; i++)
-  {    
+  {
     hclient.begin(wclient, host[i]);
     hclient.setConnectTimeout(500);
     if (HTTP_CODE_OK == hclient.GET())
@@ -1105,6 +1106,11 @@ void setup() {
   Wire.setClock(400000);
   delay(100);
   bme.begin(BME280_ADDRESS_ALTERNATE);
+  bme.setSampling(Adafruit_BME280::MODE_FORCED,  // mode
+                  Adafruit_BME280::SAMPLING_X16, // temperature
+                  Adafruit_BME280::SAMPLING_X1,  // pressure
+                  Adafruit_BME280::SAMPLING_X1,  // humidity
+                  Adafruit_BME280::FILTER_X16);  // filtering
   delay(100);
   u8g2.begin();
   delay(100);
