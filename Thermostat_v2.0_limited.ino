@@ -208,7 +208,6 @@ void ButtonCheck()
         if (Encoder.updateStatus()) {
           if (Encoder.readStatus(PUSHD)) {
             displayBox = SETTING;
-            stateStartTime = millis();
           }
           else if (Encoder.readStatus(PUSHP)) {
             displayBox = INFO;
@@ -321,6 +320,7 @@ bool Draw_Setting(bool smReset)
   static SETTING_SM prevState;
   static char actualString[8];
   static unsigned long stateEnterTime;
+  static int vhsscdc = 0; //very high speed state change detection counter
   char setString[8];
   bool leaveMenu = 0;
   int rotaryPosition;
@@ -342,6 +342,8 @@ bool Draw_Setting(bool smReset)
         Draw_Bitmap(32, 0, radiator_width, radiator_height, radiator_bits, 1);
         if (Encoder.updateStatus()) {
           stateEnterTime = millis();
+          if (Encoder.readStatus(PUSHD)) {
+            vhsscdc++; }
           if (Encoder.readStatus(RINC)) {
             settingState = FLOOR;
           }
@@ -389,9 +391,24 @@ bool Draw_Setting(bool smReset)
       }
     case CHILD:
       {
+        if ((millis()-stateEnterTime) < 300 {
+          vhsscdc++; }
+        if ((millis()-stateEnterTime) < 128 {
+          vhsscdc++; }
         Draw_Bitmap(32, 0, childroom_width, childroom_height, childroom_bits, 1);
         if (Encoder.updateStatus()) {
           stateEnterTime = millis();
+          if (Encoder.readStatus(PUSHD)) {
+            vhsscdc++; }
+          if (vhsscdc > 1) {
+            terminal.print("Vhsscdc: ");
+            terminal.println(vhsscdc);
+            terminal.print("Counter: ");
+            terminal.println(Encoder.readCounterInt());
+            terminal.flush();
+            leaveMenu = 1;
+            return leaveMenu;
+          }
           if (Encoder.readStatus(RINC)) {
             settingState = SOFA;
           }
@@ -425,7 +442,8 @@ bool Draw_Setting(bool smReset)
       {
         static unsigned int posCounter = 33;
         static bool initSet = 1;
-
+        
+        vhsscdc = 0;
         if (initSet)
         {
           if (FLOOR == prevState)
