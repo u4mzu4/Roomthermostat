@@ -193,6 +193,7 @@ void ButtonCheck()
   static unsigned long stateStartTime;
   static DISPLAY_SM displayBox = INIT;
   static bool newSettings = 1;
+  static int VHSSCDC = 0; //very high speed state change detection counter
   int encoderErrorcounter = 0;
 
   switch (displayBox)
@@ -208,24 +209,30 @@ void ButtonCheck()
         if (Encoder.updateStatus()) {
           if (Encoder.readStatus(PUSHD)) {
             displayBox = SETTING;
+            if ((millis() - stateStartTime) < 300)
+            {
+              VHSSCDC++;
+            }
+            else
+            {
+              VHSSCDC = 0;
+            }
+            stateStartTime = millis();
           }
           else if (Encoder.readStatus(PUSHP)) {
             displayBox = INFO;
             stateStartTime = millis();
           }
         }
-        while ((int16_t)0 == Encoder.readCounterInt())
+        if (VHSSCDC > 5)
         {
-          encoderErrorcounter++;
-          Encoder.writeCounter((int32_t)65535);
+          displayBox = MAIN;
+          encoderErrorcounter = VHSSCDC;
           ErrorManager(ENCODER_ERROR, encoderErrorcounter, 5);
-          if (encoderErrorcounter >= 5)
-          {
-            break;
-          }
         }
         break;
       }
+
     case INFO:
       {
         disableMainTask = 1;
@@ -325,6 +332,17 @@ bool Draw_Setting(bool smReset)
   bool leaveMenu = 0;
   int rotaryPosition;
 
+  if (vhsscdc > 5)
+  {
+    terminal.print("Vhsscdc: ");
+    terminal.println(vhsscdc);
+    terminal.print("Counter: ");
+    terminal.println(Encoder.readCounterInt());
+    terminal.flush();
+    leaveMenu = 1;
+    return leaveMenu;
+  }
+
   if (smReset)
   {
     settingState = RADIATOR;
@@ -343,7 +361,8 @@ bool Draw_Setting(bool smReset)
         if (Encoder.updateStatus()) {
           stateEnterTime = millis();
           if (Encoder.readStatus(PUSHD)) {
-            vhsscdc++; }
+            vhsscdc++;
+          }
           if (Encoder.readStatus(RINC)) {
             settingState = FLOOR;
           }
@@ -391,15 +410,18 @@ bool Draw_Setting(bool smReset)
       }
     case CHILD:
       {
-        if ((millis()-stateEnterTime) < 300 {
-          vhsscdc++; }
-        if ((millis()-stateEnterTime) < 128 {
-          vhsscdc++; }
+        if ((millis() - stateEnterTime) < 300) {
+          vhsscdc++;
+        }
+        if ((millis() - stateEnterTime) < 128) {
+          vhsscdc++;
+        }
         Draw_Bitmap(32, 0, childroom_width, childroom_height, childroom_bits, 1);
         if (Encoder.updateStatus()) {
           stateEnterTime = millis();
           if (Encoder.readStatus(PUSHD)) {
-            vhsscdc++; }
+            vhsscdc++;
+          }
           if (vhsscdc > 1) {
             terminal.print("Vhsscdc: ");
             terminal.println(vhsscdc);
@@ -442,7 +464,7 @@ bool Draw_Setting(bool smReset)
       {
         static unsigned int posCounter = 33;
         static bool initSet = 1;
-        
+
         vhsscdc = 0;
         if (initSet)
         {
@@ -958,6 +980,8 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
     case ENCODER_ERROR:
       {
         terminal.println("Encoder  error");
+        terminal.print("Counter: ");
+        terminal.println(Encoder.readCounterInt());
         break;
       }
     default:
