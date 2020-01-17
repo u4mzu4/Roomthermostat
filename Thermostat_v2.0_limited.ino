@@ -193,14 +193,14 @@ void ButtonCheck()
   static unsigned long stateStartTime;
   static DISPLAY_SM displayBox = INIT;
   static bool newSettings = 1;
-  static int VHSSCDC = 0; //very high speed state change detection counter
-  int encoderErrorcounter = 0;
+  int encoderErrorcounter;
 
   switch (displayBox)
   {
     case INIT:
       {
         displayBox = MAIN;
+        encoderErrorcounter = 0;
         break;
       }
     case MAIN:
@@ -211,11 +211,7 @@ void ButtonCheck()
             displayBox = SETTING;
             if ((millis() - stateStartTime) < 300)
             {
-              VHSSCDC++;
-            }
-            else
-            {
-              VHSSCDC = 0;
+              encoderErrorcounter++;
             }
             stateStartTime = millis();
           }
@@ -224,15 +220,13 @@ void ButtonCheck()
             stateStartTime = millis();
           }
         }
-        if (VHSSCDC > 5)
+        ErrorManager(ENCODER_ERROR, encoderErrorcounter, 5);
+        if (encoderErrorcounter > 5)
         {
-          displayBox = MAIN;
-          encoderErrorcounter = VHSSCDC;
-          ErrorManager(ENCODER_ERROR, encoderErrorcounter, 5);
+          displayBox = FAILED;
         }
         break;
       }
-
     case INFO:
       {
         disableMainTask = 1;
@@ -262,6 +256,13 @@ void ButtonCheck()
           newSettings = 0;
         }
         break;
+      }
+    case FAILED:
+      {
+      if (!Encoder.updateStatus()) {
+        displayBox = INIT; 
+      }
+      break;
       }
   }
 }
