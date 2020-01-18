@@ -209,9 +209,13 @@ void ButtonCheck()
         if (Encoder.updateStatus()) {
           if (Encoder.readStatus(PUSHD)) {
             displayBox = SETTING;
-            if ((millis() - stateStartTime) < 300)
+            if ((millis() - stateStartTime) < 5 * BUTIMER)
             {
               encoderErrorcounter++;
+            }
+            else
+            {
+              encoderErrorcounter = 0;
             }
             stateStartTime = millis();
           }
@@ -259,10 +263,10 @@ void ButtonCheck()
       }
     case FAILED:
       {
-      if (!Encoder.updateStatus()) {
-        displayBox = INIT; 
-      }
-      break;
+        if (!Encoder.updateStatus()) {
+          displayBox = INIT;
+        }
+        break;
       }
   }
 }
@@ -335,11 +339,6 @@ bool Draw_Setting(bool smReset)
 
   if (vhsscdc > 5)
   {
-    terminal.print("Vhsscdc: ");
-    terminal.println(vhsscdc);
-    terminal.print("Counter: ");
-    terminal.println(Encoder.readCounterInt());
-    terminal.flush();
     leaveMenu = 1;
     return leaveMenu;
   }
@@ -352,6 +351,7 @@ bool Draw_Setting(bool smReset)
   }
   if (millis() - stateEnterTime > 2 * TIMEOUT)
   {
+    vhsscdc = 0;
     leaveMenu = 1;
   }
   switch (settingState)
@@ -360,14 +360,15 @@ bool Draw_Setting(bool smReset)
       {
         Draw_Bitmap(32, 0, radiator_width, radiator_height, radiator_bits, 1);
         if (Encoder.updateStatus()) {
-          stateEnterTime = millis();
-          if (Encoder.readStatus(PUSHD)) {
-            vhsscdc++;
-          }
           if (Encoder.readStatus(RINC)) {
+            stateEnterTime = millis();
             settingState = FLOOR;
           }
           if (Encoder.readStatus(PUSHP)) {
+            if ((millis() - stateEnterTime) < 5 * BUTIMER) {
+              vhsscdc++;
+            }
+            stateEnterTime = millis();
             settingState = CHILD;
           }
         }
@@ -404,6 +405,7 @@ bool Draw_Setting(bool smReset)
             setFloorTemp = 20.0;
             Blynk.virtualWrite(V5, setValue);
             Blynk.virtualWrite(V6, setFloorTemp);
+            vhsscdc = 0;
             leaveMenu = 1;
           }
         }
@@ -411,35 +413,21 @@ bool Draw_Setting(bool smReset)
       }
     case CHILD:
       {
-        if ((millis() - stateEnterTime) < 300) {
-          vhsscdc++;
-        }
-        if ((millis() - stateEnterTime) < 128) {
-          vhsscdc++;
-        }
         Draw_Bitmap(32, 0, childroom_width, childroom_height, childroom_bits, 1);
         if (Encoder.updateStatus()) {
-          stateEnterTime = millis();
-          if (Encoder.readStatus(PUSHD)) {
-            vhsscdc++;
-          }
-          if (vhsscdc > 1) {
-            terminal.print("Vhsscdc: ");
-            terminal.println(vhsscdc);
-            terminal.print("Counter: ");
-            terminal.println(Encoder.readCounterInt());
-            terminal.flush();
-            leaveMenu = 1;
-            return leaveMenu;
-          }
-          if (Encoder.readStatus(RINC)) {
-            settingState = SOFA;
-          }
           if (Encoder.readStatus(PUSHP)) {
+            if ((millis() - stateEnterTime) < 5 * BUTIMER) {
+              vhsscdc++;
+            }
+            stateEnterTime = millis();
             setControlBase = 2;
             Blynk.virtualWrite(V12, setControlBase);
             settingState = THERMO_SET;
             prevState = CHILD;
+          }
+          if (Encoder.readStatus(RINC)) {
+            stateEnterTime = millis();
+            settingState = SOFA;
           }
         }
         break;
@@ -466,7 +454,11 @@ bool Draw_Setting(bool smReset)
         static unsigned int posCounter = 33;
         static bool initSet = 1;
 
-        vhsscdc = 0;
+        if (vhsscdc > 1)
+        {
+          leaveMenu = 1;
+          break;
+        }
         if (initSet)
         {
           if (FLOOR == prevState)
@@ -510,7 +502,6 @@ bool Draw_Setting(bool smReset)
         if (Encoder.updateStatus()) {
           stateEnterTime = millis();
           if (Encoder.readStatus(PUSHP)) {
-            leaveMenu = 1;
             if (FLOOR == prevState)
             {
               setFloorTemp = rotaryPosition / 10.0;
@@ -521,10 +512,12 @@ bool Draw_Setting(bool smReset)
               setValue = rotaryPosition / 10.0;
               Blynk.virtualWrite(V5, setValue);
             }
+            leaveMenu = 1;
           }
         }
         if (leaveMenu)
         {
+          vhsscdc = 0;
           posCounter = 33;
           initSet = 1;
           MainTask();
