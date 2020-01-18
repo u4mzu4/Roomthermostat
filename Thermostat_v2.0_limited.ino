@@ -360,16 +360,16 @@ bool Draw_Setting(bool smReset)
       {
         Draw_Bitmap(32, 0, radiator_width, radiator_height, radiator_bits, 1);
         if (Encoder.updateStatus()) {
-          if (Encoder.readStatus(RINC)) {
-            stateEnterTime = millis();
-            settingState = FLOOR;
-          }
           if (Encoder.readStatus(PUSHP)) {
             if ((millis() - stateEnterTime) < 5 * BUTIMER) {
               vhsscdc++;
             }
             stateEnterTime = millis();
             settingState = CHILD;
+          }
+          if (Encoder.readStatus(RINC)) {
+            stateEnterTime = millis();
+            settingState = FLOOR;
           }
         }
         break;
