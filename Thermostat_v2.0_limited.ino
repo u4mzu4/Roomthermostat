@@ -193,13 +193,14 @@ void ButtonCheck()
   static unsigned long stateStartTime;
   static DISPLAY_SM displayBox = INIT;
   static bool newSettings = 1;
-  int encoderErrorcounter = 0;
+  int encoderErrorcounter;
 
   switch (displayBox)
   {
     case INIT:
       {
         displayBox = MAIN;
+        encoderErrorcounter = 0;
         break;
       }
     case MAIN:
@@ -208,6 +209,14 @@ void ButtonCheck()
         if (Encoder.updateStatus()) {
           if (Encoder.readStatus(PUSHD)) {
             displayBox = SETTING;
+            if ((millis() - stateStartTime) < 5 * BUTIMER)
+            {
+              encoderErrorcounter++;
+            }
+            else
+            {
+              encoderErrorcounter = 0;
+            }
             stateStartTime = millis();
           }
           else if (Encoder.readStatus(PUSHP)) {
@@ -215,15 +224,10 @@ void ButtonCheck()
             stateStartTime = millis();
           }
         }
-        while ((int16_t)0 == Encoder.readCounterInt())
+        ErrorManager(ENCODER_ERROR, encoderErrorcounter, 5);
+        if (encoderErrorcounter > 5)
         {
-          encoderErrorcounter++;
-          Encoder.writeCounter((int32_t)65535);
-          ErrorManager(ENCODER_ERROR, encoderErrorcounter, 5);
-          if (encoderErrorcounter >= 5)
-          {
-            break;
-          }
+          displayBox = FAILED;
         }
         break;
       }
@@ -254,6 +258,13 @@ void ButtonCheck()
         else
         {
           newSettings = 0;
+        }
+        break;
+      }
+    case FAILED:
+      {
+        if (!Encoder.updateStatus()) {
+          displayBox = INIT;
         }
         break;
       }
@@ -321,9 +332,16 @@ bool Draw_Setting(bool smReset)
   static SETTING_SM prevState;
   static char actualString[8];
   static unsigned long stateEnterTime;
+  static int vhsscdc = 0; //very high speed state change detection counter
   char setString[8];
   bool leaveMenu = 0;
   int rotaryPosition;
+
+  if (vhsscdc > 5)
+  {
+    leaveMenu = 1;
+    return leaveMenu;
+  }
 
   if (smReset)
   {
@@ -333,6 +351,7 @@ bool Draw_Setting(bool smReset)
   }
   if (millis() - stateEnterTime > 2 * TIMEOUT)
   {
+    vhsscdc = 0;
     leaveMenu = 1;
   }
   switch (settingState)
@@ -341,12 +360,16 @@ bool Draw_Setting(bool smReset)
       {
         Draw_Bitmap(32, 0, radiator_width, radiator_height, radiator_bits, 1);
         if (Encoder.updateStatus()) {
-          stateEnterTime = millis();
-          if (Encoder.readStatus(RINC)) {
-            settingState = FLOOR;
-          }
           if (Encoder.readStatus(PUSHP)) {
+            if ((millis() - stateEnterTime) < 5 * BUTIMER) {
+              vhsscdc++;
+            }
+            stateEnterTime = millis();
             settingState = CHILD;
+          }
+          if (Encoder.readStatus(RINC)) {
+            stateEnterTime = millis();
+            settingState = FLOOR;
           }
         }
         break;
@@ -382,6 +405,7 @@ bool Draw_Setting(bool smReset)
             setFloorTemp = 20.0;
             Blynk.virtualWrite(V5, setValue);
             Blynk.virtualWrite(V6, setFloorTemp);
+            vhsscdc = 0;
             leaveMenu = 1;
           }
         }
@@ -391,15 +415,19 @@ bool Draw_Setting(bool smReset)
       {
         Draw_Bitmap(32, 0, childroom_width, childroom_height, childroom_bits, 1);
         if (Encoder.updateStatus()) {
-          stateEnterTime = millis();
-          if (Encoder.readStatus(RINC)) {
-            settingState = SOFA;
-          }
           if (Encoder.readStatus(PUSHP)) {
+            if ((millis() - stateEnterTime) < 5 * BUTIMER) {
+              vhsscdc++;
+            }
+            stateEnterTime = millis();
             setControlBase = 2;
             Blynk.virtualWrite(V12, setControlBase);
             settingState = THERMO_SET;
             prevState = CHILD;
+          }
+          if (Encoder.readStatus(RINC)) {
+            stateEnterTime = millis();
+            settingState = SOFA;
           }
         }
         break;
@@ -426,6 +454,11 @@ bool Draw_Setting(bool smReset)
         static unsigned int posCounter = 33;
         static bool initSet = 1;
 
+        if (vhsscdc > 1)
+        {
+          leaveMenu = 1;
+          break;
+        }
         if (initSet)
         {
           if (FLOOR == prevState)
@@ -469,7 +502,6 @@ bool Draw_Setting(bool smReset)
         if (Encoder.updateStatus()) {
           stateEnterTime = millis();
           if (Encoder.readStatus(PUSHP)) {
-            leaveMenu = 1;
             if (FLOOR == prevState)
             {
               setFloorTemp = rotaryPosition / 10.0;
@@ -480,10 +512,12 @@ bool Draw_Setting(bool smReset)
               setValue = rotaryPosition / 10.0;
               Blynk.virtualWrite(V5, setValue);
             }
+            leaveMenu = 1;
           }
         }
         if (leaveMenu)
         {
+          vhsscdc = 0;
           posCounter = 33;
           initSet = 1;
           MainTask();
@@ -940,6 +974,8 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
     case ENCODER_ERROR:
       {
         terminal.println("Encoder  error");
+        terminal.print("Counter: ");
+        terminal.println(Encoder.readCounterInt());
         break;
       }
     default:
