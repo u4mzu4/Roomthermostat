@@ -102,6 +102,7 @@ bool radiatorON = 0;
 bool heatingON = 1;
 bool disableMainTask = 0;
 bool flameON = 0;
+bool failSafe = 0;
 
 //Init services
 strDateTime dateTime;
@@ -840,7 +841,15 @@ void MainTask()
   {
     GetWaterTemp();
     ReadBME280();
-    ReadTransmitter();
+    if (!failSafe)
+    {
+      ReadTransmitter();
+    }
+    else
+    {
+      actualTemperature = bmeTemperature;
+      kitchenTemp = bmeTemperature;
+    }
     ManageHeating();
     Draw_RoomTemp();
     tasktime = millis() - tic;
@@ -1171,17 +1180,21 @@ void setup() {
     delay(500);
     if (millis() - wifitimeout > TIMEOUT)
     {
+      failSafe = 1;
       break;
     }
   }
 
-  Blynk.config(auth);
-  Blynk.connect();
-  Blynk.syncAll();
-  Blynk.virtualWrite(V7, boilerON);
-  Blynk.virtualWrite(V8, floorON);
-  Blynk.virtualWrite(V9, radiatorON);
-  terminal.clear();
+  if (!failSafe)
+  {
+    Blynk.config(auth);
+    Blynk.connect();
+    Blynk.syncAll();
+    Blynk.virtualWrite(V7, boilerON);
+    Blynk.virtualWrite(V8, floorON);
+    Blynk.virtualWrite(V9, radiatorON);
+    terminal.clear();
+  }
 
   ot.begin(handleInterrupt);
   MainTask();
