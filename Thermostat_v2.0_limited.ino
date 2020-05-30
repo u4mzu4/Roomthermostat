@@ -58,14 +58,14 @@ enum ERROR_T {
   ENCODER_ERROR = 5
 };
 
-
-
 //Defines
 #define RELAYPIN1 32
 #define RELAYPIN2 33
 #define WATERPIN  17
 #define OTPIN_IN 36
 #define OTPIN_OUT 4
+#define SERVERPORT 80
+#define NTPSERVER "hu.pool.ntp.org"
 #define TIMEOUT   5000  //5 sec
 #define AFTERCIRCTIME 300000 //5min
 #define BUTIMER   61
@@ -79,10 +79,11 @@ enum ERROR_T {
 #define FLOOR_TEMP 40.0
 #define MAXWATERTEMP 36.0
 #define NROFTRANSM 2
-#define OFFSET 2.0
 
 
 //Global variables
+const float transmOffset[NROFTRANSM] = {8.0, -2.0};
+
 float waterTemperature;
 float actualTemperature;
 float actualHumidity;
@@ -108,7 +109,7 @@ bool failSafe = 0;
 strDateTime dateTime;
 Adafruit_BME280 bme;
 U8G2_SSD1309_128X64_NONAME2_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE, SCL, SDA);
-NTPtime NTPhu("hu.pool.ntp.org");   // Choose server pool as required
+NTPtime NTPhu(NTPSERVER);   // Choose server pool as required
 BlynkTimer timer;
 WidgetTerminal terminal(V19);
 OneWire oneWire(WATERPIN);
@@ -116,7 +117,7 @@ DallasTemperature sensor(&oneWire);
 DeviceAddress sensorDeviceAddress;
 i2cEncoderLibV2 Encoder(ENCODER_ADDRESS);
 OpenTherm ot(OTPIN_IN, OTPIN_OUT);
-AsyncWebServer server(80);
+AsyncWebServer server(SERVERPORT);
 WiFiClient wclient;
 HTTPClient hclient;
 
@@ -614,11 +615,12 @@ void ReadTransmitter()
     {
       lastvalidtransTemp[i] = transData[i];
       transmErrorcounter[i] = 0;
+      transData[i] -= transmOffset[i];
     }
   }
   ErrorManager(TRANSM0_ERROR, transmErrorcounter[0], 5);
   ErrorManager(TRANSM1_ERROR, transmErrorcounter[1], 5);
-  kitchenTemp = transData[1] + OFFSET;
+  kitchenTemp = transData[1];
   Blynk.virtualWrite(V11, kitchenTemp);
   if (2 == setControlBase)
   {
