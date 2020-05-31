@@ -613,9 +613,9 @@ void ReadTransmitter()
     }
     else
     {
+      transData[i] -= transmOffset[i];
       lastvalidtransTemp[i] = transData[i];
       transmErrorcounter[i] = 0;
-      transData[i] -= transmOffset[i];
     }
   }
   kitchenTemp = transData[1];
