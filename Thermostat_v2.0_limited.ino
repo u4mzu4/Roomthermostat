@@ -618,9 +618,9 @@ void ReadTransmitter()
       transData[i] -= transmOffset[i];
     }
   }
-  ErrorManager(TRANSM0_ERROR, transmErrorcounter[0], 5);
-  ErrorManager(TRANSM1_ERROR, transmErrorcounter[1], 5);
   kitchenTemp = transData[1];
+  ErrorManager(TRANSM0_ERROR, transmErrorcounter[0], 6);
+  ErrorManager(TRANSM1_ERROR, transmErrorcounter[1], 5);
   Blynk.virtualWrite(V11, kitchenTemp);
   if (2 == setControlBase)
   {
@@ -928,17 +928,6 @@ void ProcessOpenTherm()
     otErrorCounter++;
     response = ot.sendRequest(request);
     ErrorManager(OT_ERROR, otErrorCounter, 5);
-    if (otErrorCounter >= 5)
-    {
-      terminal.print("Request: ");
-      terminal.println(request);
-      terminal.print("Response: ");
-      terminal.println(response);
-      terminal.print("Status: ");
-      terminal.println(ot.getLastResponseStatus());
-      terminal.flush();
-      break;
-    }
   }
 }
 
@@ -956,6 +945,7 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
     case DS18B20_ERROR:
       {
         terminal.println("DS18B20 error");
+        terminal.flush();
         break;
       }
     case BME280_ERROR:
@@ -963,6 +953,7 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
         setControlBase = 2;
         Blynk.virtualWrite(V12, setControlBase);
         terminal.println("BME280 error");
+        terminal.flush();
         break;
       }
     case TRANSM0_ERROR:
@@ -970,16 +961,20 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
         setControlBase = 1;
         Blynk.virtualWrite(V12, setControlBase);
         terminal.println("Transmitter0 error");
+        terminal.flush();
         break;
       }
     case TRANSM1_ERROR:
       {
+        kitchenTemp = actualTemperature;
         terminal.println("Transmitter1 error");
+        terminal.flush();
         break;
       }
     case OT_ERROR:
       {
         terminal.println("OpenTherm  error");
+        terminal.flush();
         break;
       }
     case ENCODER_ERROR:
@@ -987,6 +982,7 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
         terminal.println("Encoder  error");
         terminal.print("Counter: ");
         terminal.println(Encoder.readCounterInt());
+        terminal.flush();
         break;
       }
     default:
