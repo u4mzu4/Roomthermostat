@@ -17,7 +17,7 @@
 
 const char* ssid      = "";
 const char* password  = "";
-const char* host[2]      = {"http://192.168.178.53/","http://192.168.178.56/"}; //Temperature transmitter
+const char* host[2]      = {"http://192.168.178.66/","http://192.168.178.56/"}; //Temperature transmitter
 const char* auth = ""; //Bylink auth
 
 
