@@ -593,6 +593,13 @@ void ReadTransmitter()
   static float lastvalidtransTemp[NROFTRANSM];
   static int transmErrorcounter[NROFTRANSM] = {0, 0};
 
+  if (failSafe)
+  {
+      actualTemperature = bmeTemperature;
+      kitchenTemp = bmeTemperature;
+      return;
+  }
+
   for (int i = 0; i < NROFTRANSM; i++)
   {
     hclient.begin(wclient, host[i]);
@@ -619,7 +626,7 @@ void ReadTransmitter()
     }
   }
   kitchenTemp = transData[1];
-  ErrorManager(TRANSM0_ERROR, transmErrorcounter[0], 6);
+  ErrorManager(TRANSM0_ERROR, transmErrorcounter[0], 8);
   ErrorManager(TRANSM1_ERROR, transmErrorcounter[1], 5);
   Blynk.virtualWrite(V11, kitchenTemp);
   if (2 == setControlBase)
@@ -843,15 +850,7 @@ void MainTask()
   {
     GetWaterTemp();
     ReadBME280();
-    if (!failSafe)
-    {
-      ReadTransmitter();
-    }
-    else
-    {
-      actualTemperature = bmeTemperature;
-      kitchenTemp = bmeTemperature;
-    }
+    ReadTransmitter();
     ManageHeating();
     Draw_RoomTemp();
     tasktime = millis() - tic;
@@ -945,7 +944,6 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
     case DS18B20_ERROR:
       {
         terminal.println("DS18B20 error");
-        terminal.flush();
         break;
       }
     case BME280_ERROR:
@@ -953,7 +951,6 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
         setControlBase = 2;
         Blynk.virtualWrite(V12, setControlBase);
         terminal.println("BME280 error");
-        terminal.flush();
         break;
       }
     case TRANSM0_ERROR:
@@ -961,20 +958,17 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
         setControlBase = 1;
         Blynk.virtualWrite(V12, setControlBase);
         terminal.println("Transmitter0 error");
-        terminal.flush();
         break;
       }
     case TRANSM1_ERROR:
       {
         kitchenTemp = actualTemperature;
         terminal.println("Transmitter1 error");
-        terminal.flush();
         break;
       }
     case OT_ERROR:
       {
         terminal.println("OpenTherm  error");
-        terminal.flush();
         break;
       }
     case ENCODER_ERROR:
@@ -982,7 +976,6 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
         terminal.println("Encoder  error");
         terminal.print("Counter: ");
         terminal.println(Encoder.readCounterInt());
-        terminal.flush();
         break;
       }
     default:
