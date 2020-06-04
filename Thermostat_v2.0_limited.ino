@@ -50,12 +50,12 @@ enum SETTING_SM {
 };
 
 enum ERROR_T {
-  DS18B20_ERROR = 0,
-  BME280_ERROR  = 1,
-  TRANSM0_ERROR = 2,
-  TRANSM1_ERROR = 3,
-  OT_ERROR      = 4,
-  ENCODER_ERROR = 5
+  DS18B20_ERROR = 1,
+  BME280_ERROR  = 2,
+  TRANSM0_ERROR = 4,
+  TRANSM1_ERROR = 8,
+  OT_ERROR      = 16,
+  ENCODER_ERROR = 32
 };
 
 //Defines
@@ -595,9 +595,9 @@ void ReadTransmitter()
 
   if (failSafe)
   {
-      actualTemperature = bmeTemperature;
-      kitchenTemp = bmeTemperature;
-      return;
+    actualTemperature = bmeTemperature;
+    kitchenTemp = bmeTemperature;
+    return;
   }
 
   for (int i = 0; i < NROFTRANSM; i++)
@@ -932,11 +932,30 @@ void ProcessOpenTherm()
 
 void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
 {
+  static byte errorMask = B00000000;
+  static unsigned long errorStart;
+
+  if ((errorCounter == 0) && (errorMask & errorID))
+  {
+    errorMask = errorMask ^ errorID;
+    terminal.print("Error ID");
+    terminal.print(errorID);
+    terminal.print(" cleared after ");
+    terminal.print((millis() - errorStart) / 60000);
+    terminal.println(" minutes");
+    if (!errorMask)
+    {
+      Encoder.writeRGBCode(0x000000);
+    }
+  }
+
   if (errorCounter < errorLimit)
   {
     return;
   }
 
+  errorStart = millis();
+  errorMask = errorMask | errorID;
   Encoder.writeLEDR(0xFF);
 
   switch (errorID)
@@ -1200,8 +1219,6 @@ void loop() {
     {
       server.end();
       webserverIsRunning = 0;
-      terminal.println("WebServer is OFF");
-      terminal.flush();
     }
     Blynk.run();
   }
