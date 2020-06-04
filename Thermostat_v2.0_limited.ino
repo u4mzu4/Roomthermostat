@@ -937,7 +937,7 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
 
   if ((errorCounter == 0) && (errorMask & errorID))
   {
-    errorMask = errorMask ^ errorID;
+    errorMask ^= errorID;
     terminal.print("Error ID");
     terminal.print(errorID);
     terminal.print(" cleared after ");
@@ -955,7 +955,7 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
   }
 
   errorStart = millis();
-  errorMask = errorMask | errorID;
+  errorMask |= errorID;
   Encoder.writeLEDR(0xFF);
 
   switch (errorID)
