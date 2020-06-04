@@ -927,6 +927,17 @@ void ProcessOpenTherm()
     otErrorCounter++;
     response = ot.sendRequest(request);
     ErrorManager(OT_ERROR, otErrorCounter, 5);
+    if (otErrorCounter >= 5)
+    {
+      terminal.print("Request: ");
+      terminal.println(request);
+      terminal.print("Response: ");
+      terminal.println(response);
+      terminal.print("Status: ");
+      terminal.println(ot.getLastResponseStatus());
+      terminal.flush();
+      break;
+    }
   }
 }
 
