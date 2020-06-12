@@ -952,8 +952,9 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
     terminal.print("Error ID");
     terminal.print(errorID);
     terminal.print(" cleared after ");
-    terminal.print((millis() - errorStart) / 60000);
-    terminal.println(" minutes");
+    terminal.print((millis() - errorStart) / 1000);
+    terminal.println(" seconds");
+    terminal.flush();
     if (!errorMask)
     {
       Encoder.writeRGBCode(0x000000);
