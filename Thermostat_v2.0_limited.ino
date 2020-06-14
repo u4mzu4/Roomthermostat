@@ -625,9 +625,16 @@ void ReadTransmitter()
       transmErrorcounter[i] = 0;
     }
   }
-  kitchenTemp = transData[1];
   ErrorManager(TRANSM0_ERROR, transmErrorcounter[0], 8);
   ErrorManager(TRANSM1_ERROR, transmErrorcounter[1], 5);
+  if (transmErrorcounter[1] < 6)
+  {
+    kitchenTemp = transData[1];
+  }
+  else
+  {
+    kitchenTemp = actualTemperature;
+  }
   Blynk.virtualWrite(V11, kitchenTemp);
   if (2 == setControlBase)
   {
@@ -898,9 +905,6 @@ float CalculateBoilerTemp(HEAT_SM controlState)
   {
     boilerTemp = 0.0;
   }
-  terminal.print("Bolier temp: ");
-  terminal.println(boilerTemp);
-  terminal.flush();
 }
 
 void ProcessOpenTherm()
@@ -944,7 +948,9 @@ void ProcessOpenTherm()
 void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
 {
   static byte errorMask = B00000000;
+  static byte prevErrorMask = B00000000;
   static unsigned long errorStart;
+  static int prevControlBase;
 
   if ((errorCounter == 0) && (errorMask & errorID))
   {
@@ -958,6 +964,12 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
     if (!errorMask)
     {
       Encoder.writeRGBCode(0x000000);
+      setControlBase = prevControlBase;
+    }
+    if (prevControlBase > 0)
+    {
+      setControlBase = prevControlBase;
+      Blynk.virtualWrite(V12, setControlBase);
     }
   }
 
@@ -966,8 +978,20 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
     return;
   }
 
-  errorStart = millis();
+  if (!errorMask)
+  {
+    errorStart = millis();
+  }
   errorMask |= errorID;
+  if (errorMask == prevErrorMask)
+  {
+    return;
+  }
+  else
+  {
+    prevErrorMask = errorMask;
+  }
+
   Encoder.writeLEDR(0xFF);
 
   switch (errorID)
@@ -979,6 +1003,7 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
       }
     case BME280_ERROR:
       {
+        prevControlBase = setControlBase;
         setControlBase = 2;
         Blynk.virtualWrite(V12, setControlBase);
         terminal.println("BME280 error");
@@ -986,6 +1011,7 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
       }
     case TRANSM0_ERROR:
       {
+        prevControlBase = setControlBase;
         setControlBase = 1;
         Blynk.virtualWrite(V12, setControlBase);
         terminal.println("Transmitter0 error");
@@ -993,7 +1019,6 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
       }
     case TRANSM1_ERROR:
       {
-        kitchenTemp = actualTemperature;
         terminal.println("Transmitter1 error");
         break;
       }
