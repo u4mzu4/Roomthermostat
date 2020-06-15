@@ -963,7 +963,7 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
     terminal.flush();
     if (!errorMask)
     {
-
+      Encoder.writeRGBCode(0x000000);
       setControlBase = prevControlBase;
     }
     if (prevControlBase > 0)
