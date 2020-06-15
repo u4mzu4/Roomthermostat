@@ -963,7 +963,7 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
     terminal.flush();
     if (!errorMask)
     {
-      Encoder.writeRGBCode(0x000000);
+
       setControlBase = prevControlBase;
     }
     if (prevControlBase > 0)
@@ -1217,6 +1217,11 @@ void setup() {
   Encoder.writeInterruptConfig(0x00); /* Disable all the interrupt */
   Encoder.writeAntibouncingPeriod(20);  /* Set an anti-bouncing of 200ms */
   Encoder.writeDoublePushPeriod(50);  /*Set a period for the double push of 500ms*/
+  Encoder.writeRGBCode(0xFF0000);
+  delay(200);
+  Encoder.writeRGBCode(0x00FF00);
+  delay(200);
+  Encoder.writeRGBCode(0x0000FF);
 
   WiFi.mode(WIFI_STA);
   WiFi.begin (ssid, password);
@@ -1234,6 +1239,7 @@ void setup() {
 
   if (!failSafe)
   {
+    Encoder.writeRGBCode(0x000000);
     Blynk.config(auth);
     Blynk.connect();
     Blynk.syncAll();
