@@ -226,7 +226,7 @@ void ButtonCheck()
             stateStartTime = millis();
           }
         }
-        ErrorManager(ENCODER_ERROR, encoderErrorcounter, 5);
+        //ErrorManager(ENCODER_ERROR, encoderErrorcounter, 5);
         if (encoderErrorcounter > 5)
         {
           displayBox = FAILED;
@@ -860,6 +860,7 @@ void MainTask()
     ReadTransmitter();
     ManageHeating();
     Draw_RoomTemp();
+    EncoderDiag();
     tasktime = millis() - tic;
     if (tasktime > maxtask)
     {
@@ -955,6 +956,7 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
   if ((errorCounter == 0) && (errorMask & errorID))
   {
     errorMask ^= errorID;
+    prevErrorMask = errorMask;
     terminal.print("Error ID");
     terminal.print(errorID);
     terminal.print(" cleared after ");
@@ -964,12 +966,11 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
     if (!errorMask)
     {
       Encoder.writeRGBCode(0x000000);
-      setControlBase = prevControlBase;
-    }
-    if (prevControlBase > 0)
-    {
-      setControlBase = prevControlBase;
-      Blynk.virtualWrite(V12, setControlBase);
+      if (prevControlBase > 0)
+      {
+        setControlBase = prevControlBase;
+        Blynk.virtualWrite(V12, setControlBase);
+      }
     }
   }
 
@@ -977,7 +978,7 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
   {
     return;
   }
-
+  Encoder.writeLEDR(0xFF);
   if (!errorMask)
   {
     errorStart = millis();
@@ -991,8 +992,6 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
   {
     prevErrorMask = errorMask;
   }
-
-  Encoder.writeLEDR(0xFF);
 
   switch (errorID)
   {
@@ -1024,12 +1023,12 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
       }
     case OT_ERROR:
       {
-        terminal.println("OpenTherm  error");
+        terminal.println("OpenTherm error");
         break;
       }
     case ENCODER_ERROR:
       {
-        terminal.println("Encoder  error");
+        terminal.println("Encoder error");
         terminal.print("Counter: ");
         terminal.println(Encoder.readCounterInt());
         break;
@@ -1182,7 +1181,28 @@ void SetupWebServer ()
   server.begin();
 }
 
+void EncoderDiag()
+{
+  const int reg1 = 0xAAAAAAAA;
+  const int reg2 = 0x55555555;
+  static int encErrorcnt;
+  int storedCounter;
+  int counter2write;
 
+  storedCounter = Encoder.readCounterLong();
+  counter2write = ((storedCounter & reg1) < (storedCounter & reg2)) ? reg1 : reg2;
+  Encoder.writeCounter(counter2write);
+  storedCounter = Encoder.readCounterLong();
+  if (storedCounter != counter2write)
+  {
+    encErrorcnt++;
+  }
+  else
+  {
+    encErrorcnt = 0;
+  }
+  ErrorManager(ENCODER_ERROR, encErrorcnt, 5);
+}
 
 void setup() {
   pinMode(RELAYPIN1, OUTPUT);
