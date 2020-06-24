@@ -590,7 +590,7 @@ void ReadTransmitter()
   }
   ErrorManager(TRANSM0_ERROR, transmErrorcounter[0], 8);
   ErrorManager(TRANSM1_ERROR, transmErrorcounter[1], 5);
-  if (transmErrorcounter[1] < 6)
+  if (transmErrorcounter[1] < 5)
   {
     kitchenTemp = transData[1];
   }
@@ -854,7 +854,7 @@ float CalculateBoilerTemp(HEAT_SM controlState)
   if (FLOOR_ON == controlState)
   {
     errorSignal = setFloorTemp + HYSTERESIS - kitchenTemp;
-    boilerTemp = 30 + errorSignal * 50.0;
+    boilerTemp = 30.0 + errorSignal * 50.0;
   }
   else
   {
@@ -915,6 +915,7 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
   static byte prevErrorMask = B00000000;
   static unsigned long errorStart;
   static int prevControlBase;
+  char errorTime[21];
 
   if ((errorCounter == 0) && (errorMask & errorID))
   {
@@ -955,7 +956,11 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
   {
     prevErrorMask = errorMask;
   }
-
+  if (RefreshDateTime())
+  {
+    sprintf(errorTime, "%i-%02i-%02i %02i:%02i:%02i", dateTime.year, dateTime.month, dateTime.day, dateTime.hour, dateTime.minute, dateTime.second);
+    terminal.println(errorTime);
+  }
   switch (errorID)
   {
     case DS18B20_ERROR:
