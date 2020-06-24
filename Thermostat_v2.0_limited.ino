@@ -50,15 +50,13 @@ enum SETTING_SM {
 };
 
 enum ERROR_T {
-  DS18B20_ERROR = 0,
-  BME280_ERROR  = 1,
-  TRANSM0_ERROR = 2,
-  TRANSM1_ERROR = 3,
-  OT_ERROR      = 4,
-  ENCODER_ERROR = 5
+  DS18B20_ERROR = 1,
+  BME280_ERROR  = 2,
+  TRANSM0_ERROR = 4,
+  TRANSM1_ERROR = 8,
+  OT_ERROR      = 16,
+  ENCODER_ERROR = 32
 };
-
-
 
 //Defines
 #define RELAYPIN1 32
@@ -66,6 +64,8 @@ enum ERROR_T {
 #define WATERPIN  17
 #define OTPIN_IN 36
 #define OTPIN_OUT 4
+#define SERVERPORT 80
+#define NTPSERVER "hu.pool.ntp.org"
 #define TIMEOUT   5000  //5 sec
 #define AFTERCIRCTIME 300000 //5min
 #define BUTIMER   61
@@ -79,10 +79,11 @@ enum ERROR_T {
 #define FLOOR_TEMP 40.0
 #define MAXWATERTEMP 36.0
 #define NROFTRANSM 2
-#define OFFSET 2.0
 
 
 //Global variables
+const float transmOffset[NROFTRANSM] = {8.0, -2.0};
+
 float waterTemperature;
 float actualTemperature;
 float actualHumidity;
@@ -102,12 +103,13 @@ bool radiatorON = 0;
 bool heatingON = 1;
 bool disableMainTask = 0;
 bool flameON = 0;
+bool failSafe = 0;
 
 //Init services
 strDateTime dateTime;
 Adafruit_BME280 bme;
 U8G2_SSD1309_128X64_NONAME2_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE, SCL, SDA);
-NTPtime NTPhu("hu.pool.ntp.org");   // Choose server pool as required
+NTPtime NTPhu(NTPSERVER);   // Choose server pool as required
 BlynkTimer timer;
 WidgetTerminal terminal(V19);
 OneWire oneWire(WATERPIN);
@@ -115,7 +117,7 @@ DallasTemperature sensor(&oneWire);
 DeviceAddress sensorDeviceAddress;
 i2cEncoderLibV2 Encoder(ENCODER_ADDRESS);
 OpenTherm ot(OTPIN_IN, OTPIN_OUT);
-AsyncWebServer server(80);
+AsyncWebServer server(SERVERPORT);
 WiFiClient wclient;
 HTTPClient hclient;
 
@@ -193,14 +195,12 @@ void ButtonCheck()
   static unsigned long stateStartTime;
   static DISPLAY_SM displayBox = INIT;
   static bool newSettings = 1;
-  int encoderErrorcounter;
 
   switch (displayBox)
   {
     case INIT:
       {
         displayBox = MAIN;
-        encoderErrorcounter = 0;
         break;
       }
     case MAIN:
@@ -209,25 +209,11 @@ void ButtonCheck()
         if (Encoder.updateStatus()) {
           if (Encoder.readStatus(PUSHD)) {
             displayBox = SETTING;
-            if ((millis() - stateStartTime) < 5 * BUTIMER)
-            {
-              encoderErrorcounter++;
-            }
-            else
-            {
-              encoderErrorcounter = 0;
-            }
-            stateStartTime = millis();
           }
           else if (Encoder.readStatus(PUSHP)) {
             displayBox = INFO;
             stateStartTime = millis();
           }
-        }
-        ErrorManager(ENCODER_ERROR, encoderErrorcounter, 5);
-        if (encoderErrorcounter > 5)
-        {
-          displayBox = FAILED;
         }
         break;
       }
@@ -332,16 +318,9 @@ bool Draw_Setting(bool smReset)
   static SETTING_SM prevState;
   static char actualString[8];
   static unsigned long stateEnterTime;
-  static int vhsscdc = 0; //very high speed state change detection counter
   char setString[8];
   bool leaveMenu = 0;
   int rotaryPosition;
-
-  if (vhsscdc > 5)
-  {
-    leaveMenu = 1;
-    return leaveMenu;
-  }
 
   if (smReset)
   {
@@ -351,7 +330,6 @@ bool Draw_Setting(bool smReset)
   }
   if (millis() - stateEnterTime > 2 * TIMEOUT)
   {
-    vhsscdc = 0;
     leaveMenu = 1;
   }
   switch (settingState)
@@ -361,9 +339,6 @@ bool Draw_Setting(bool smReset)
         Draw_Bitmap(32, 0, radiator_width, radiator_height, radiator_bits, 1);
         if (Encoder.updateStatus()) {
           if (Encoder.readStatus(PUSHP)) {
-            if ((millis() - stateEnterTime) < 5 * BUTIMER) {
-              vhsscdc++;
-            }
             stateEnterTime = millis();
             settingState = CHILD;
           }
@@ -405,7 +380,6 @@ bool Draw_Setting(bool smReset)
             setFloorTemp = 20.0;
             Blynk.virtualWrite(V5, setValue);
             Blynk.virtualWrite(V6, setFloorTemp);
-            vhsscdc = 0;
             leaveMenu = 1;
           }
         }
@@ -416,9 +390,6 @@ bool Draw_Setting(bool smReset)
         Draw_Bitmap(32, 0, childroom_width, childroom_height, childroom_bits, 1);
         if (Encoder.updateStatus()) {
           if (Encoder.readStatus(PUSHP)) {
-            if ((millis() - stateEnterTime) < 5 * BUTIMER) {
-              vhsscdc++;
-            }
             stateEnterTime = millis();
             setControlBase = 2;
             Blynk.virtualWrite(V12, setControlBase);
@@ -454,11 +425,6 @@ bool Draw_Setting(bool smReset)
         static unsigned int posCounter = 33;
         static bool initSet = 1;
 
-        if (vhsscdc > 1)
-        {
-          leaveMenu = 1;
-          break;
-        }
         if (initSet)
         {
           if (FLOOR == prevState)
@@ -517,7 +483,6 @@ bool Draw_Setting(bool smReset)
         }
         if (leaveMenu)
         {
-          vhsscdc = 0;
           posCounter = 33;
           initSet = 1;
           MainTask();
@@ -591,6 +556,13 @@ void ReadTransmitter()
   static float lastvalidtransTemp[NROFTRANSM];
   static int transmErrorcounter[NROFTRANSM] = {0, 0};
 
+  if (failSafe)
+  {
+    actualTemperature = bmeTemperature;
+    kitchenTemp = bmeTemperature;
+    return;
+  }
+
   for (int i = 0; i < NROFTRANSM; i++)
   {
     hclient.begin(wclient, host[i]);
@@ -611,13 +583,21 @@ void ReadTransmitter()
     }
     else
     {
+      transData[i] -= transmOffset[i];
       lastvalidtransTemp[i] = transData[i];
       transmErrorcounter[i] = 0;
     }
   }
-  ErrorManager(TRANSM0_ERROR, transmErrorcounter[0], 5);
+  ErrorManager(TRANSM0_ERROR, transmErrorcounter[0], 8);
   ErrorManager(TRANSM1_ERROR, transmErrorcounter[1], 5);
-  kitchenTemp = transData[1] + OFFSET;
+  if (transmErrorcounter[1] < 5)
+  {
+    kitchenTemp = transData[1];
+  }
+  else
+  {
+    kitchenTemp = actualTemperature;
+  }
   Blynk.virtualWrite(V11, kitchenTemp);
   if (2 == setControlBase)
   {
@@ -843,6 +823,7 @@ void MainTask()
     ReadTransmitter();
     ManageHeating();
     Draw_RoomTemp();
+    EncoderDiag();
     tasktime = millis() - tic;
     if (tasktime > maxtask)
     {
@@ -873,7 +854,7 @@ float CalculateBoilerTemp(HEAT_SM controlState)
   if (FLOOR_ON == controlState)
   {
     errorSignal = setFloorTemp + HYSTERESIS - kitchenTemp;
-    boilerTemp = 30 + errorSignal * 50.0;
+    boilerTemp = 30.0 + errorSignal * 50.0;
   }
   else
   {
@@ -888,9 +869,6 @@ float CalculateBoilerTemp(HEAT_SM controlState)
   {
     boilerTemp = 0.0;
   }
-  terminal.print("Bolier temp: ");
-  terminal.println(boilerTemp);
-  terminal.flush();
 }
 
 void ProcessOpenTherm()
@@ -933,13 +911,56 @@ void ProcessOpenTherm()
 
 void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
 {
+  static byte errorMask = B00000000;
+  static byte prevErrorMask = B00000000;
+  static unsigned long errorStart;
+  static int prevControlBase;
+  char errorTime[21];
+
+  if ((errorCounter == 0) && (errorMask & errorID))
+  {
+    errorMask ^= errorID;
+    prevErrorMask = errorMask;
+    terminal.print("Error ID");
+    terminal.print(errorID);
+    terminal.print(" cleared after ");
+    terminal.print((millis() - errorStart) / 1000);
+    terminal.println(" seconds");
+    terminal.flush();
+    if (!errorMask)
+    {
+      Encoder.writeRGBCode(0x000000);
+      if (prevControlBase > 0)
+      {
+        setControlBase = prevControlBase;
+        Blynk.virtualWrite(V12, setControlBase);
+      }
+    }
+  }
+
   if (errorCounter < errorLimit)
   {
     return;
   }
-
   Encoder.writeLEDR(0xFF);
-
+  if (!errorMask)
+  {
+    errorStart = millis();
+  }
+  errorMask |= errorID;
+  if (errorMask == prevErrorMask)
+  {
+    return;
+  }
+  else
+  {
+    prevErrorMask = errorMask;
+  }
+  if (RefreshDateTime())
+  {
+    sprintf(errorTime, "%i-%02i-%02i %02i:%02i:%02i", dateTime.year, dateTime.month, dateTime.day, dateTime.hour, dateTime.minute, dateTime.second);
+    terminal.println(errorTime);
+  }
   switch (errorID)
   {
     case DS18B20_ERROR:
@@ -949,6 +970,7 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
       }
     case BME280_ERROR:
       {
+        prevControlBase = setControlBase;
         setControlBase = 2;
         Blynk.virtualWrite(V12, setControlBase);
         terminal.println("BME280 error");
@@ -956,6 +978,7 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
       }
     case TRANSM0_ERROR:
       {
+        prevControlBase = setControlBase;
         setControlBase = 1;
         Blynk.virtualWrite(V12, setControlBase);
         terminal.println("Transmitter0 error");
@@ -968,12 +991,12 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
       }
     case OT_ERROR:
       {
-        terminal.println("OpenTherm  error");
+        terminal.println("OpenTherm error");
         break;
       }
     case ENCODER_ERROR:
       {
-        terminal.println("Encoder  error");
+        terminal.println("Encoder error");
         terminal.print("Counter: ");
         terminal.println(Encoder.readCounterInt());
         break;
@@ -1126,7 +1149,28 @@ void SetupWebServer ()
   server.begin();
 }
 
+void EncoderDiag()
+{
+  const int reg1 = 0xAAAAAAAA;
+  const int reg2 = 0x55555555;
+  static int encErrorcnt;
+  int storedCounter;
+  int counter2write;
 
+  storedCounter = Encoder.readCounterLong();
+  counter2write = ((storedCounter & reg1) < (storedCounter & reg2)) ? reg1 : reg2;
+  Encoder.writeCounter(counter2write);
+  storedCounter = Encoder.readCounterLong();
+  if (storedCounter != counter2write)
+  {
+    encErrorcnt++;
+  }
+  else
+  {
+    encErrorcnt = 0;
+  }
+  ErrorManager(ENCODER_ERROR, encErrorcnt, 5);
+}
 
 void setup() {
   pinMode(RELAYPIN1, OUTPUT);
@@ -1161,6 +1205,11 @@ void setup() {
   Encoder.writeInterruptConfig(0x00); /* Disable all the interrupt */
   Encoder.writeAntibouncingPeriod(20);  /* Set an anti-bouncing of 200ms */
   Encoder.writeDoublePushPeriod(50);  /*Set a period for the double push of 500ms*/
+  Encoder.writeRGBCode(0xFF0000);
+  delay(200);
+  Encoder.writeRGBCode(0x00FF00);
+  delay(200);
+  Encoder.writeRGBCode(0x0000FF);
 
   WiFi.mode(WIFI_STA);
   WiFi.begin (ssid, password);
@@ -1171,17 +1220,22 @@ void setup() {
     delay(500);
     if (millis() - wifitimeout > TIMEOUT)
     {
+      failSafe = 1;
       break;
     }
   }
 
-  Blynk.config(auth);
-  Blynk.connect();
-  Blynk.syncAll();
-  Blynk.virtualWrite(V7, boilerON);
-  Blynk.virtualWrite(V8, floorON);
-  Blynk.virtualWrite(V9, radiatorON);
-  terminal.clear();
+  if (!failSafe)
+  {
+    Encoder.writeRGBCode(0x000000);
+    Blynk.config(auth);
+    Blynk.connect();
+    Blynk.syncAll();
+    Blynk.virtualWrite(V7, boilerON);
+    Blynk.virtualWrite(V8, floorON);
+    Blynk.virtualWrite(V9, radiatorON);
+    terminal.clear();
+  }
 
   ot.begin(handleInterrupt);
   MainTask();
@@ -1196,8 +1250,6 @@ void loop() {
     {
       server.end();
       webserverIsRunning = 0;
-      terminal.println("WebServer is OFF");
-      terminal.flush();
     }
     Blynk.run();
   }
