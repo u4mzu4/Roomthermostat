@@ -61,9 +61,9 @@ enum ERROR_T {
 //Defines
 #define RELAYPIN1 32
 #define RELAYPIN2 33
-#define WATERPIN  17
-#define OTPIN_IN 36
-#define OTPIN_OUT 4
+#define WATERPIN  18
+#define OTPIN_IN 12
+#define OTPIN_OUT 14
 #define SERVERPORT 80
 #define NTPSERVER "hu.pool.ntp.org"
 #define TIMEOUT   5000  //5 sec
