@@ -1,5 +1,5 @@
 /*
-  ESP32-EVB development board (https://www.olimex.com/Products/IoT/ESP32/ESP32-EVB/open-source-hardware)
+  Lolin D32 Pro development board (https://docs.wemos.cc/en/latest/d32/d32_pro.html)
   BME280 + DS18B20 sensors
   2.42" OLED SSD1309
   I2C rotary (https://github.com/Fattoresaimon/I2CEncoderV2)
