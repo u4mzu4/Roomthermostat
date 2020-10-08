@@ -62,7 +62,7 @@ enum ERROR_T {
 #define RELAYPIN1 32
 #define RELAYPIN2 33
 #define WATERPIN  18
-#define OTPIN_IN 12
+#define OTPIN_IN  12
 #define OTPIN_OUT 14
 #define SERVERPORT 80
 #define NTPSERVER "hu.pool.ntp.org"
@@ -116,7 +116,7 @@ OneWire oneWire(WATERPIN);
 DallasTemperature sensor(&oneWire);
 DeviceAddress sensorDeviceAddress;
 i2cEncoderLibV2 Encoder(ENCODER_ADDRESS);
-OpenTherm ot(OTPIN_IN, OTPIN_OUT);
+OpenTherm ot(OTPIN_IN, OTPIN_OUT, false);
 AsyncWebServer server(SERVERPORT);
 WiFiClient wclient;
 HTTPClient hclient;
@@ -207,10 +207,10 @@ void ButtonCheck()
       {
         disableMainTask = 0;
         if (Encoder.updateStatus()) {
-          if (Encoder.readStatus(PUSHD)) {
+          if (Encoder.readStatus(i2cEncoderLibV2::PUSHD)) {
             displayBox = SETTING;
           }
-          else if (Encoder.readStatus(PUSHP)) {
+          else if (Encoder.readStatus(i2cEncoderLibV2::PUSHP)) {
             displayBox = INFO;
             stateStartTime = millis();
           }
@@ -338,11 +338,11 @@ bool Draw_Setting(bool smReset)
       {
         Draw_Bitmap(32, 0, radiator_width, radiator_height, radiator_bits, 1);
         if (Encoder.updateStatus()) {
-          if (Encoder.readStatus(PUSHP)) {
+          if (Encoder.readStatus(i2cEncoderLibV2::PUSHP)) {
             stateEnterTime = millis();
             settingState = CHILD;
           }
-          if (Encoder.readStatus(RINC)) {
+          if (Encoder.readStatus(i2cEncoderLibV2::RINC)) {
             stateEnterTime = millis();
             settingState = FLOOR;
           }
@@ -354,13 +354,13 @@ bool Draw_Setting(bool smReset)
         Draw_Bitmap(32, 0, floor_width, floor_height, floor_bits, 3);
         if (Encoder.updateStatus()) {
           stateEnterTime = millis();
-          if (Encoder.readStatus(RDEC)) {
+          if (Encoder.readStatus(i2cEncoderLibV2::RDEC)) {
             settingState = RADIATOR;
           }
-          if (Encoder.readStatus(RINC)) {
+          if (Encoder.readStatus(i2cEncoderLibV2::RINC)) {
             settingState = HOLIDAY;
           }
-          if (Encoder.readStatus(PUSHP)) {
+          if (Encoder.readStatus(i2cEncoderLibV2::PUSHP)) {
             prevState = FLOOR;
             settingState = THERMO_SET;
           }
@@ -372,10 +372,10 @@ bool Draw_Setting(bool smReset)
         Draw_Bitmap(32, 0, holiday_width, holiday_height, holiday_bits, 2);
         if (Encoder.updateStatus()) {
           stateEnterTime = millis();
-          if (Encoder.readStatus(RDEC)) {
+          if (Encoder.readStatus(i2cEncoderLibV2::RDEC)) {
             settingState = FLOOR;
           }
-          if (Encoder.readStatus(PUSHP)) {
+          if (Encoder.readStatus(i2cEncoderLibV2::PUSHP)) {
             setValue = 20.0;
             setFloorTemp = 20.0;
             Blynk.virtualWrite(V5, setValue);
@@ -389,14 +389,14 @@ bool Draw_Setting(bool smReset)
       {
         Draw_Bitmap(32, 0, childroom_width, childroom_height, childroom_bits, 1);
         if (Encoder.updateStatus()) {
-          if (Encoder.readStatus(PUSHP)) {
+          if (Encoder.readStatus(i2cEncoderLibV2::PUSHP)) {
             stateEnterTime = millis();
             setControlBase = 2;
             Blynk.virtualWrite(V12, setControlBase);
             settingState = THERMO_SET;
             prevState = CHILD;
           }
-          if (Encoder.readStatus(RINC)) {
+          if (Encoder.readStatus(i2cEncoderLibV2::RINC)) {
             stateEnterTime = millis();
             settingState = SOFA;
           }
@@ -408,10 +408,10 @@ bool Draw_Setting(bool smReset)
         Draw_Bitmap(32, 0, sofa_width, sofa_height, sofa_bits, 2);
         if (Encoder.updateStatus()) {
           stateEnterTime = millis();
-          if (Encoder.readStatus(RDEC)) {
+          if (Encoder.readStatus(i2cEncoderLibV2::RDEC)) {
             settingState = CHILD;
           }
-          if (Encoder.readStatus(PUSHP)) {
+          if (Encoder.readStatus(i2cEncoderLibV2::PUSHP)) {
             setControlBase = 1;
             Blynk.virtualWrite(V12, setControlBase);
             settingState = THERMO_SET;
@@ -467,7 +467,7 @@ bool Draw_Setting(bool smReset)
         u8g2.sendBuffer();
         if (Encoder.updateStatus()) {
           stateEnterTime = millis();
-          if (Encoder.readStatus(PUSHP)) {
+          if (Encoder.readStatus(i2cEncoderLibV2::PUSHP)) {
             if (FLOOR == prevState)
             {
               setFloorTemp = rotaryPosition / 10.0;
@@ -660,7 +660,7 @@ void ManageHeating()
         if (actualTemperature < (setValue - HYSTERESIS))
         {
           heatstate = RADIATOR_ON;
-          temperatureRequest = CalculateBoilerTemp(heatstate);
+          temperatureRequest = CalculateBoilerTemp(heatstate);;
           digitalWrite(RELAYPIN2, 1);
           boilerON = 1;
           radiatorON = 1;
@@ -869,6 +869,7 @@ float CalculateBoilerTemp(HEAT_SM controlState)
   {
     boilerTemp = 0.0;
   }
+  return boilerTemp;
 }
 
 void ProcessOpenTherm()
@@ -897,12 +898,9 @@ void ProcessOpenTherm()
     ErrorManager(OT_ERROR, otErrorCounter, 5);
     if (otErrorCounter >= 5)
     {
-      terminal.print("Request: ");
-      terminal.println(request);
-      terminal.print("Response: ");
-      terminal.println(response);
-      terminal.print("Status: ");
-      terminal.println(ot.getLastResponseStatus());
+      terminal.println("Request: 0x" + String(request, HEX));
+      terminal.println("Response: 0x" + String(response, HEX));
+      terminal.println("Status: " + String(ot.statusToString(ot.getLastResponseStatus())));
       terminal.flush();
       break;
     }
@@ -960,6 +958,11 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
   {
     sprintf(errorTime, "%i-%02i-%02i %02i:%02i:%02i", dateTime.year, dateTime.month, dateTime.day, dateTime.hour, dateTime.minute, dateTime.second);
     terminal.println(errorTime);
+    terminal.flush();
+  }
+  else
+  {
+    terminal.println(String(millis()));
   }
   switch (errorID)
   {
@@ -1173,6 +1176,7 @@ void EncoderDiag()
 }
 
 void setup() {
+  Serial.begin(115200);
   pinMode(RELAYPIN1, OUTPUT);
   pinMode(RELAYPIN2, OUTPUT);
   digitalWrite(RELAYPIN1, 0);
@@ -1200,7 +1204,7 @@ void setup() {
   delay(100);
   sensor.setResolution(sensorDeviceAddress, DS18B20_RESOLUTION);
   delay(100);
-  Encoder.begin(INT_DATA | WRAP_DISABLE | DIRE_RIGHT | IPUP_DISABLE | RMOD_X1 | RGB_ENCODER);
+  Encoder.begin(i2cEncoderLibV2::INT_DATA | i2cEncoderLibV2::WRAP_DISABLE | i2cEncoderLibV2::DIRE_RIGHT | i2cEncoderLibV2::IPUP_DISABLE | i2cEncoderLibV2::RMOD_X1 | i2cEncoderLibV2::RGB_ENCODER);
   delay(100);
   Encoder.writeInterruptConfig(0x00); /* Disable all the interrupt */
   Encoder.writeAntibouncingPeriod(20);  /* Set an anti-bouncing of 200ms */
