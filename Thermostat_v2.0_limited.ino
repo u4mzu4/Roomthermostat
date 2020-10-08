@@ -660,7 +660,7 @@ void ManageHeating()
         if (actualTemperature < (setValue - HYSTERESIS))
         {
           heatstate = RADIATOR_ON;
-          temperatureRequest = CalculateBoilerTemp(heatstate);;
+          temperatureRequest = CalculateBoilerTemp(heatstate);
           digitalWrite(RELAYPIN2, 1);
           boilerON = 1;
           radiatorON = 1;
