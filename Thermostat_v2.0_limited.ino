@@ -902,9 +902,10 @@ void ProcessOpenTherm()
       terminal.println("Response: 0x" + String(response, HEX));
       terminal.println("Status: " + String(ot.statusToString(ot.getLastResponseStatus())));
       terminal.flush();
-      break;
+      return;
     }
   }
+  ErrorManager(OT_ERROR, 0, 5);
 }
 
 void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
