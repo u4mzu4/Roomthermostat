@@ -6,21 +6,21 @@
   OpenTherm boiler interface (http://ihormelnyk.com/opentherm_adapter)
   OpenTherm library (https://github.com/ihormelnyk/opentherm_library/)
   Blynk service
-  ESP Async webserver if Blynk not available (https://github.com/me-no-dev/ESPAsyncWebServer)
+  InfluxDB database storage
 */
 
 //Includes
 #include <Adafruit_BME280.h>
 #include <DallasTemperature.h>
 #include <U8g2lib.h>
-#include <NTPtimeESP.h>
 #include <BlynkSimpleEsp32_SSL.h>
 #include <HTTPClient.h>
 #include <i2cEncoderLibV2.h>
 #include <icons.h>
 #include <OpenTherm.h>
-#include <ESPAsyncWebServer.h>
-#include <SPIFFS.h>
+#include <InfluxDbClient.h>
+#include <Arduino_JSON.h>
+#include <time.h>
 
 //Enum
 enum DISPLAY_SM {
@@ -64,7 +64,6 @@ enum ERROR_T {
 #define WATERPIN  18
 #define OTPIN_IN  12
 #define OTPIN_OUT 14
-#define SERVERPORT 80
 #define NTPSERVER "hu.pool.ntp.org"
 #define TIMEOUT   5000  //5 sec
 #define AFTERCIRCTIME 300000 //5min
@@ -79,7 +78,9 @@ enum ERROR_T {
 #define FLOOR_TEMP 40.0
 #define MAXWATERTEMP 36.0
 #define NROFTRANSM 2
-
+#define WRITE_PRECISION WritePrecision::S
+#define MAX_BATCH_SIZE 15
+#define WRITE_BUFFER_SIZE 30
 
 //Global variables
 const float transmOffset[NROFTRANSM] = {8.0, -2.0};
@@ -93,6 +94,7 @@ float bmeTemperature;
 float setValue = 22.0;
 float setFloorTemp = 22.0;
 float kitchenTemp;
+float outsideTemp;
 float temperatureRequest;
 
 int setControlBase = 2;
@@ -104,12 +106,11 @@ bool heatingON = 1;
 bool disableMainTask = 0;
 bool flameON = 0;
 bool failSafe = 0;
+struct tm dateTime;
 
 //Init services
-strDateTime dateTime;
 Adafruit_BME280 bme;
 U8G2_SSD1309_128X64_NONAME2_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE, SCL, SDA);
-NTPtime NTPhu(NTPSERVER);   // Choose server pool as required
 BlynkTimer timer;
 WidgetTerminal terminal(V19);
 OneWire oneWire(WATERPIN);
@@ -117,9 +118,9 @@ DallasTemperature sensor(&oneWire);
 DeviceAddress sensorDeviceAddress;
 i2cEncoderLibV2 Encoder(ENCODER_ADDRESS);
 OpenTherm ot(OTPIN_IN, OTPIN_OUT, false);
-AsyncWebServer server(SERVERPORT);
 WiFiClient wclient;
 HTTPClient hclient;
+InfluxDBClient influxclient(influxdb_URL, influxdb_ORG, influxdb_BUCKET, influxdb_TOKEN);
 
 void GetWaterTemp()
 {
@@ -495,12 +496,13 @@ bool Draw_Setting(bool smReset)
 
 bool RefreshDateTime()
 {
-  dateTime = NTPhu.getNTPtime(1.0, 1);
-  if (dateTime.year > 2035)
+  bool timeIsValid = getLocalTime(&dateTime);
+
+  if (dateTime.tm_year > 135)
   {
     return 0;
   }
-  return (dateTime.valid);
+  return (timeIsValid);
 }
 
 void Draw_Info()
@@ -515,15 +517,15 @@ void Draw_Info()
   bool validdate;
 
   validdate = RefreshDateTime();
-  if (lastRefresh == dateTime.second)
+  if (lastRefresh == dateTime.tm_sec)
   {
     return;
   }
 
   if (validdate)
   {
-    sprintf(dateChar, "%i-%02i-%02i", dateTime.year, dateTime.month, dateTime.day);
-    sprintf(timeChar, "%02i:%02i:%02i", dateTime.hour, dateTime.minute, dateTime.second);
+    sprintf(dateChar, "%i-%02i-%02i", dateTime.tm_year + 1900, dateTime.tm_mon, dateTime.tm_mday);
+    sprintf(timeChar, "%02i:%02i:%02i", dateTime.tm_hour, dateTime.tm_min, dateTime.tm_sec);
   }
   dtostrf(bmeTemperature, 4, 1, bme280String);
   strcat(bme280String, "°C");
@@ -548,7 +550,7 @@ void Draw_Info()
   u8g2.drawUTF8(0, 50, "Watertemp:");
   u8g2.drawUTF8(65, 50, watertempString); // write water temperature
   u8g2.sendBuffer();          // transfer internal memory to the display
-  lastRefresh = dateTime.second;
+  lastRefresh = dateTime.tm_sec;
 }
 
 void ReadTransmitter()
@@ -823,7 +825,8 @@ void MainTask()
     ReadTransmitter();
     ManageHeating();
     Draw_RoomTemp();
-    EncoderDiag();
+    OpenWeatherRead();
+    InfluxBatchWriter();
     tasktime = millis() - tic;
     if (tasktime > maxtask)
     {
@@ -957,7 +960,7 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
   }
   if (RefreshDateTime())
   {
-    sprintf(errorTime, "%i-%02i-%02i %02i:%02i:%02i", dateTime.year, dateTime.month, dateTime.day, dateTime.hour, dateTime.minute, dateTime.second);
+    sprintf(errorTime, "%i-%02i-%02i %02i:%02i:%02i", dateTime.tm_year + 1900, dateTime.tm_mon, dateTime.tm_mday, dateTime.tm_hour, dateTime.tm_min, dateTime.tm_sec);
     terminal.println(errorTime);
     terminal.flush();
   }
@@ -1013,167 +1016,60 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
   terminal.flush();
 }
 
-String processor(const String& var)
-{
-  String tempvar = var;
-  tempvar.remove(2);
-  int numberofPH = tempvar.toInt();
-  switch (numberofPH) {
-    case 1:
-      return (String(actualHumidity, 0) + " %%");
-      break;
-    case 2:
-      return (String(actualPressure, 0) + " mbar");
-      break;
-    case 3:
-      return (String(actualTemperature, 1) + " °C");
-      break;
-    case 4:
-      if (radiatorON)
-      {
-        return String("on");
-      }
-      else
-      {
-        return String("off");
-      }
-      break;
-    case 5:
-      if (boilerON)
-      {
-        return String("on");
-      }
-      else
-      {
-        return String("off");
-      }
-      break;
-    case 6:
-      if (floorON)
-      {
-        return String("on");
-      }
-      else
-      {
-        return String("off");
-      }
-      break;
-    case 7:
-      return (String(bmeTemperature, 1) + " °C");
-      break;
-    case 8:
-      return (String(transData[0], 1) + " °C");
-      break;
-    case 9:
-      return (String(kitchenTemp, 1) + " °C");
-      break;
-    case 10:
-      return (String(waterTemperature, 1) + " °C");
-      break;
-    case 11:
-      return (String(setValue, 1));
-      break;
-    case 12:
-      return (String(setFloorTemp, 1));
-      break;
-    case 13:
-      if (setControlBase == 1)
-      {
-        return String("checked");
-      }
-    case 14:
-      if (setControlBase == 2)
-      {
-        return String("checked");
-      }
-    case 15:
-      if (heatingON)
-      {
-        return String("checked");
-      }
-    default:
-      return String();
-      break;
-  }
-  return String();
-}
+void InfluxBatchWriter() {
 
-void SetupWebServer ()
-{
-  static bool SPIFFSinited = 0;
-  if (!SPIFFSinited)
-  {
-    SPIFFSinited = SPIFFS.begin(true);
-  }
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
-    int paramsNr = request->params();
-    if (4 == paramsNr)
+  unsigned long tnow;
+  float boilerON_f = (float)boilerON;
+  float floorON_f = (float)floorON;
+  float radiatorON_f = (float)radiatorON;
+  float flameON_f = (float)flameON;
+  float setControlBase_f = (float)setControlBase;
+
+  String influxDataType[MAX_BATCH_SIZE] = {"meas", "meas", "meas", "meas", "meas", "meas", "meas", "meas", "set", "set", "set", "status", "status", "status", "status"};
+  String influxDataUnit[MAX_BATCH_SIZE] = {"Celsius", "Celsius", "%", "mbar", "Celsius", "Celsius", "Celsius", "Celsius", "Celsius", "Celsius", "bool", "bool", "bool", "bool", "bool"};
+  String influxFieldName[MAX_BATCH_SIZE] = {"waterTemperature", "actualTemperature", "actualHumidity", "actualPressure", "bmeTemperature", "kitchenTemp", "childRoomTemp", "outsideTemp", "setValue", "setFloorTemp", "setControlBase", "boilerON", "floorON", "radiatorON", "flameON"};
+  float* influxFieldValue[MAX_BATCH_SIZE] = {&waterTemperature, &actualTemperature, &actualHumidity, &actualPressure, &bmeTemperature, &kitchenTemp, &transData[0], &outsideTemp, &setValue, &setFloorTemp, &setControlBase_f, &boilerON_f, &floorON_f, &radiatorON_f, &flameON_f};
+
+  if (influxclient.isBufferEmpty()) {
+    tnow = GetEpochTime();
+    for (int i = 0; i < MAX_BATCH_SIZE; i++)
     {
-      for (int j = 0; j < paramsNr; j++)
-      {
-        AsyncWebParameter* p = request->getParam(j);
-        if (String("p1") == p->name())
-        {
-          setValue = p->value().toFloat();
-          Blynk.virtualWrite(V5, setValue);
-        }
-        if (String("p2") == p->name())
-        {
-          heatingON = (bool)(p->value().toInt());
-          Blynk.virtualWrite(V2, heatingON);
-        }
-        if (String("p3") == p->name())
-        {
-          setFloorTemp  = p->value().toFloat();
-          Blynk.virtualWrite(V6, setFloorTemp);
-        }
-        if (String("p4") == p->name())
-        {
-          setControlBase  = p->value().toInt();
-          Blynk.virtualWrite(V12, setControlBase);
-        }
-      }
+      Point influxBatchPoint("thermostat");
+      influxBatchPoint.addTag("data_type", influxDataType[i]);
+      influxBatchPoint.addTag("data_unit", influxDataUnit[i]);
+      influxBatchPoint.addField(influxFieldName[i], *(influxFieldValue[i]));
+      influxBatchPoint.setTime(tnow);
+      influxclient.writePoint(influxBatchPoint);
     }
-    request->send(SPIFFS, "/index.html", String(), false, processor);
-  });
-
-  // Route to load style.css file
-  server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest * request) {
-    request->send(SPIFFS, "/style.css", "text/css");
-  });
-
-  // Route to load circle.css file
-  server.on("/circle.css", HTTP_GET, [](AsyncWebServerRequest * request) {
-    request->send(SPIFFS, "/circle.css", "text/css");
-  });
-
-  server.on("/script.js", HTTP_GET, [](AsyncWebServerRequest * request) {
-    request->send(SPIFFS, "/script.js", "text/javascript");
-  });
-  server.begin();
+    influxclient.flushBuffer();
+  }
 }
 
-void EncoderDiag()
-{
-  const int reg1 = 0xAAAAAAAA;
-  const int reg2 = 0x55555555;
-  static int encErrorcnt;
-  int storedCounter;
-  int counter2write;
+void OpenWeatherRead() {
+  JSONVar myJSONObject;
+  String jsonBuffer = "{}";
 
-  storedCounter = Encoder.readCounterLong();
-  counter2write = ((storedCounter & reg1) < (storedCounter & reg2)) ? reg1 : reg2;
-  Encoder.writeCounter(counter2write);
-  storedCounter = Encoder.readCounterLong();
-  if (storedCounter != counter2write)
+  hclient.begin(wclient, openweatherURL);
+  hclient.setConnectTimeout(500);
+  if (HTTP_CODE_OK == hclient.GET())
   {
-    encErrorcnt++;
+    jsonBuffer = hclient.getString();
+    myJSONObject = JSON.parse(jsonBuffer);
+    outsideTemp = (float)(double)(myJSONObject["main"]["temp"]);
+    outsideTemp -= 273.15;
+    Blynk.virtualWrite(V15, outsideTemp);
   }
-  else
-  {
-    encErrorcnt = 0;
+  hclient.end();
+}
+
+unsigned long GetEpochTime() {
+  time_t now;
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    return (0);
   }
-  ErrorManager(ENCODER_ERROR, encErrorcnt, 5);
+  time(&now);
+  return now;
 }
 
 void setup() {
@@ -1233,6 +1129,9 @@ void setup() {
   if (!failSafe)
   {
     Encoder.writeRGBCode(0x000000);
+    configTime(3600, 3600, NTPSERVER);
+    influxclient.setWriteOptions(WriteOptions().writePrecision(WRITE_PRECISION).batchSize(MAX_BATCH_SIZE).bufferSize(WRITE_BUFFER_SIZE));
+    influxclient.validateConnection();
     Blynk.config(auth);
     Blynk.connect();
     Blynk.syncAll();
@@ -1247,23 +1146,14 @@ void setup() {
 }
 
 void loop() {
-  static bool webserverIsRunning = 0;
-
   if (Blynk.connected())
   {
-    if (webserverIsRunning)
-    {
-      server.end();
-      webserverIsRunning = 0;
-    }
     Blynk.run();
   }
   else
   {
     Blynk.disconnect();
     delay(1000);
-    SetupWebServer();
-    webserverIsRunning = 1;
     Blynk.connect();
   }
   timer.run();
