@@ -17,8 +17,13 @@
 
 const char* ssid      = "";
 const char* password  = "";
-const char* host[2]      = {"http://192.168.178.66/","http://192.168.178.56/"}; //Temperature transmitter
+const char* host[2]      = {"http://192.168.1.66/","http://192.168.1.78/"}; //Temperature transmitter
 const char* auth = ""; //Bylink auth
+const char* openweatherURL= "";
+const char* influxdb_URL  = "http://192.168.1.103:8086";
+const char* influxdb_TOKEN = "";
+const char* influxdb_ORG = "private";
+const char* influxdb_BUCKET = "thermo_data";
 
 
 static unsigned char childroom_bits[] = {
