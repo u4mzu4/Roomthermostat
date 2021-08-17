@@ -8,7 +8,6 @@
 */
 
 //Includes
-
 #include <Adafruit_BME280.h>
 #include <Arduino_JSON.h>
 #include <BlynkSimpleEsp32_SSL.h>
@@ -21,6 +20,7 @@
 #include <TFT_eSPI.h>
 #include <time.h>
 
+//Enums
 enum HEAT_SM {
   OFF         = 0,
   RADIATOR_ON = 1,
@@ -50,6 +50,9 @@ enum DISPLAY_SM {
 };
 
 //Defines
+
+#define TEST_MODE
+
 #define RELAYPIN1 32
 #define RELAYPIN2 33
 #define WATERPIN  18
@@ -57,10 +60,11 @@ enum DISPLAY_SM {
 #define OTPIN_OUT 14
 #define INT_PIN   39
 #define NTPSERVER "hu.pool.ntp.org"
-#define TIMEOUT   5000  		//5 sec
+#define TIMEOUT   5000        //5 sec
 #define AFTERCIRCTIME 360000 	//6 min
-#define MAINTIMER 60013 		//1 min
-#define OTTIMER	997 			//1 sec
+#define MAINTIMER 60013       //1 min
+#define OTTIMER	997           //1 sec
+#define SETTIMEOUT	50000 		//50 sec
 #define HYSTERESIS 0.1
 #define DS18B20_RESOLUTION 11
 #define DS18B20_DEFREG 0x2A80
@@ -89,7 +93,6 @@ float setFloorTemp = 22.0;
 float kitchenTemp;
 float outsideTemp;
 float temperatureRequest;
-float plotC = setValue;
 
 int setControlBase = 2;
 
@@ -123,6 +126,11 @@ FT6236 touch = FT6236();
 
 void GetWaterTemp()
 {
+#ifdef TEST_MODE
+  waterTemperature = 24.1;
+  Blynk.virtualWrite(V10, waterTemperature);
+#else
+
   unsigned short tempRaw = DS18B20_DEFREG;
   static float lastvalidTemperature;
   static int ds18b20Errorcounter = 0;
@@ -150,10 +158,20 @@ void GetWaterTemp()
   }
   ErrorManager(DS18B20_ERROR, ds18b20Errorcounter, 5);
   Blynk.virtualWrite(V10, waterTemperature);
+#endif
 }
 
 void ReadBME280()
 {
+#ifdef TEST_MODE
+  bmeTemperature = 25.2;
+  actualHumidity = 44.1;
+  actualPressure = 1004.2;
+  Blynk.virtualWrite(V14, bmeTemperature);
+  Blynk.virtualWrite(V3, actualHumidity);
+  Blynk.virtualWrite(V4, actualPressure);
+#else
+
   static float lastvalidTemperature;
   static float lastvalidHumidity;
   static float lastvalidPressure;
@@ -188,6 +206,7 @@ void ReadBME280()
   Blynk.virtualWrite(V14, bmeTemperature);
   Blynk.virtualWrite(V3, actualHumidity);
   Blynk.virtualWrite(V4, actualPressure);
+#endif
 }
 
 bool RefreshDateTime()
@@ -261,12 +280,20 @@ void ReadTransmitter()
   Blynk.virtualWrite(V13, transData[0]);
 }
 
+void DrawFloatAsString(float floatToDraw, String unit, int posx, int posy)
+{
+  tft.drawString(String(floatToDraw, 1) + " " + unit, posx, posy);
+}
+
 void TouchCheck() {
 
   static DISPLAY_SM displayBox = MAIN;
+  static char plotString[12];
   static unsigned long stateStartTime;
-  static unsigned int sliderPos = 160;
-  static char plotString[8];
+  static bool radiatorToBeSet;
+  static float setOffset = 0.0f;
+  static float actualValue;
+
 
   switch (displayBox)
   {
@@ -275,28 +302,34 @@ void TouchCheck() {
         if (TouchInRange(0, 394, 64, 480))
         {
           disableMainTask = 1;
+          RefreshDateTime();
           spr2.fillSprite(TFT_WHITE);
           spr2.drawXBitmap(0, 0, info_bits, info_width, info_height, TFT_BLUE);
           spr2.pushSprite(394, 246);
           delay(400);
           tft.fillScreen(TFT_BLACK);
           tft.loadFont(FONT_30);
-          tft.drawString("2021-03-05 17:11:38", 10, 10);
+          sprintf(plotString, "%i-%02i-%02i", dateTime.tm_year + 1900, dateTime.tm_mon, dateTime.tm_mday);
+          tft.drawString(plotString, 10, 10);
+          sprintf(plotString, "%02i:%02i:%02i", dateTime.tm_hour, dateTime.tm_min, dateTime.tm_sec);
+          tft.drawString(plotString, 300, 10);
           tft.drawString("Livingroom: ", 10, 50);
+          DrawFloatAsString(bmeTemperature, "°C", 160, 50);
           tft.drawString("Childroom: ", 10, 90);
+          DrawFloatAsString(transData[0], "°C", 160, 90);
           tft.drawString("Kitchen: ", 10, 130);
+          DrawFloatAsString(kitchenTemp, "°C", 160, 130);
           tft.drawString("Water: ", 10, 170);
-          tft.drawString("24.8 °C", 160, 50);
-          tft.drawString("23.8 °C", 160, 90);
-          tft.drawString("22.9 °C", 160, 130);
-          tft.drawString("29.7 °C", 160, 170);
+          DrawFloatAsString(waterTemperature, "°C", 160, 170);
+          tft.unloadFont();
           tft.loadFont(FONT_50);
           tft.drawString("RH: ", 10, 210);
-          tft.drawString("39 %", 160, 210);
+          DrawFloatAsString(actualHumidity, "%", 160, 210);
           tft.drawString("Press: ", 10, 270);
-          tft.drawString("1005 mbar", 160, 270);
+          DrawFloatAsString(actualPressure, "mbar", 160, 270);
+          tft.unloadFont();
           delay(TIMEOUT);
-          DrawMainPage();
+          DrawMainPage(1);
           disableMainTask = 0;
         }
         if (TouchInRange(0, 298, 64, 384))
@@ -312,15 +345,24 @@ void TouchCheck() {
           spr1.drawXBitmap(160, 13, radiator_160_bits, radiator_160_width, radiator_160_height, TFT_WHITE);
           spr1.drawXBitmap(320, 0, holiday_bits, holiday_width, holiday_height, TFT_YELLOW);
           spr1.pushSprite(0, 80);
+          stateStartTime = millis();
           displayBox = SETTINGS;
         }
         break;
       }
     case SETTINGS:
       {
+        if (millis() - stateStartTime > SETTIMEOUT)
+        {
+          DrawMainPage(1);
+          displayBox = MAIN;
+          disableMainTask = 0;
+        }
+
         if (TouchInRange(80, 0, 160, 159))
         {
-          DrawThermo();
+          radiatorToBeSet = 0;
+          DrawThermo(radiatorToBeSet);
           displayBox = THERMO_SET;
         }
         if (TouchInRange(80, 160, 160, 319))
@@ -339,6 +381,7 @@ void TouchCheck() {
           spr1.fillSprite(TFT_BLACK);
           spr1.drawString("HOLIDAY MODE!", 20, 20);
           spr1.drawString("ARE YOU SURE?", 20, 75);
+          spr1.unloadFont();
           spr1.drawXBitmap(260, 30, holiday_bits, holiday_width, holiday_height, TFT_YELLOW);
           spr1.pushSprite(0, 20);
           spr2.fillSprite(TFT_BLACK);
@@ -353,20 +396,36 @@ void TouchCheck() {
       }
     case THERMO_SET:
       {
+        if (millis() - stateStartTime > SETTIMEOUT)
+        {
+          DrawMainPage(1);
+          displayBox = MAIN;
+          disableMainTask = 0;
+        }
+        if (radiatorToBeSet)
+        {
+          actualValue = setValue;
+        }
+        else
+        {
+          actualValue = setFloorTemp;
+        }
         if (TouchInRange(191, 120, 255, 184))
         {
           spr2.fillSprite(TFT_WHITE);
           spr2.drawXBitmap(0, 0, arrow_up_bits, arrow_up_width, arrow_up_height, TFT_RED);
           spr2.pushSprite(120, 40);
-          plotC += 0.5;
+          setOffset += 0.5;
+          spr3.loadFont(FONT_50);
           spr3.fillSprite(TFT_BLACK);
           spr3.drawString("Actual:", 0, 40);
-          spr3.drawString(String(setValue, 1) + " °C", 130, 40);
+          spr3.drawString(String(actualValue, 1) + " °C", 130, 40);
           spr3.drawString("New:", 0, 135);
           spr3.setTextColor(TFT_BLACK, TFT_WHITE);
-          spr3.drawString(String(plotC, 1), 130, 135);
+          spr3.drawString(String(actualValue + setOffset, 1) + " °C", 130, 135);
           spr3.setTextColor(TFT_WHITE, TFT_BLACK);
           spr3.pushSprite(210, 0);
+          spr3.unloadFont();
           spr2.fillSprite(TFT_BLACK);
           spr2.drawXBitmap(0, 0, arrow_up_bits, arrow_up_width, arrow_up_height, TFT_RED);
           spr2.pushSprite(120, 40);
@@ -376,14 +435,17 @@ void TouchCheck() {
           spr2.fillSprite(TFT_WHITE);
           spr2.drawXBitmap(0, 0, arrow_down_bits, arrow_down_width, arrow_down_height, TFT_BLUE);
           spr2.pushSprite(120, 200);
-          plotC -= 0.5;
+          setOffset -= 0.5;
+          spr3.loadFont(FONT_50);
+          spr3.fillSprite(TFT_BLACK);
           spr3.drawString("Actual:", 0, 40);
-          spr3.drawString(String(setValue, 1) + " °C", 130, 40);
+          spr3.drawString(String(actualValue, 1) + " °C", 130, 40);
           spr3.drawString("New:", 0, 135);
           spr3.setTextColor(TFT_BLACK, TFT_WHITE);
-          spr3.drawString(String(plotC, 1), 130, 135);
+          spr3.drawString(String(actualValue + setOffset, 1) + " °C", 130, 135);
           spr3.setTextColor(TFT_WHITE, TFT_BLACK);
           spr3.pushSprite(210, 0);
+          spr3.unloadFont();
           spr2.fillSprite(TFT_BLACK);
           spr2.drawXBitmap(0, 0, arrow_down_bits, arrow_down_width, arrow_down_height, TFT_BLUE);
           spr2.pushSprite(120, 200);
@@ -394,17 +456,27 @@ void TouchCheck() {
           spr2.drawXBitmap(0, 0, cancel_bits, cancel_width, cancel_height, TFT_RED);
           spr2.pushSprite(280, 250);
           delay(400);
-          DrawMainPage();
+          DrawMainPage(1);
           displayBox = MAIN;
           disableMainTask = 0;
         }
         if (TouchInRange(0, 410, 64, 474))
         {
+          if (radiatorToBeSet)
+          {
+            setValue = actualValue + setOffset;
+            Blynk.virtualWrite(V5, setValue);
+          }
+          else
+          {
+            setFloorTemp = actualValue + setOffset;
+            Blynk.virtualWrite(V6, setFloorTemp);
+          }
           spr2.fillSprite(TFT_WHITE);
           spr2.drawXBitmap(0, 0, check_bits, check_width, check_height, TFT_GREEN);
           spr2.pushSprite(410, 250);
           delay(400);
-          DrawMainPage();
+          DrawMainPage(1);
           displayBox = MAIN;
           disableMainTask = 0;
         }
@@ -412,45 +484,67 @@ void TouchCheck() {
       }
     case SELECT_BASE:
       {
+        if (millis() - stateStartTime > SETTIMEOUT)
+        {
+          DrawMainPage(1);
+          displayBox = MAIN;
+          disableMainTask = 0;
+        }
         if (TouchInRange(65, 25, 255, 215))
         {
+          setControlBase = 2;
+          Blynk.virtualWrite(V12, setControlBase);
           spr1.fillSprite(TFT_BLACK);
           spr1.drawXBitmap(25, 0, bunkbed_bits, bunkbed_width, bunkbed_height, TFT_WHITE);
           spr1.drawXBitmap(265, 30, sofa_bits, sofa_width, sofa_height, TFT_RED);
           spr1.pushSprite(0, 65);
-          DrawThermo();
+          radiatorToBeSet = 1;
+          DrawThermo(radiatorToBeSet);
           displayBox = THERMO_SET;
         }
         if (TouchInRange(65, 265, 255, 455))
         {
+          setControlBase = 1;
+          Blynk.virtualWrite(V12, setControlBase);
           spr1.fillSprite(TFT_BLACK);
           spr1.drawXBitmap(25, 0, bunkbed_bits, bunkbed_width, bunkbed_height, TFT_BROWN);
           spr1.drawXBitmap(265, 30, sofa_bits, sofa_width, sofa_height, TFT_WHITE);
           spr1.pushSprite(0, 65);
-          DrawThermo();
+          radiatorToBeSet = 1;
+          DrawThermo(radiatorToBeSet);
           displayBox = THERMO_SET;
         }
         break;
       }
     case HOLIDAY:
       {
+        if (millis() - stateStartTime > SETTIMEOUT)
+        {
+          DrawMainPage(1);
+          displayBox = MAIN;
+          disableMainTask = 0;
+        }
         if (TouchInRange(0, 280, 64, 344))
         {
           spr2.fillSprite(TFT_WHITE);
           spr2.drawXBitmap(0, 0, cancel_bits, cancel_width, cancel_height, TFT_RED);
           spr2.pushSprite(280, 250);
           delay(400);
-          DrawMainPage();
+          DrawMainPage(1);
           displayBox = MAIN;
           disableMainTask = 0;
         }
         if (TouchInRange(0, 410, 64, 474))
         {
+          setValue = 20.0;
+          setFloorTemp = 20.0;
+          Blynk.virtualWrite(V5, setValue);
+          Blynk.virtualWrite(V6, setFloorTemp);
           spr2.fillSprite(TFT_WHITE);
           spr2.drawXBitmap(0, 0, check_bits, check_width, check_height, TFT_GREEN);
           spr2.pushSprite(410, 250);
           delay(400);
-          DrawMainPage();
+          DrawMainPage(1);
           displayBox = MAIN;
           disableMainTask = 0;
         }
@@ -459,8 +553,18 @@ void TouchCheck() {
   }
 }
 
-void DrawThermo()
+void DrawThermo(bool setPoint)
 {
+  String thermoString;
+
+  if (setPoint)
+  {
+    thermoString = String(setValue, 1) + " °C";
+  }
+  else
+  {
+    thermoString = String(setFloorTemp, 1) + " °C";
+  }
   tft.fillScreen(TFT_BLACK);
   spr1.fillSprite(TFT_BLACK);
   spr1.drawXBitmap(10, 15, thermometer_bits, thermometer_width, thermometer_height, TFT_WHITE);
@@ -477,14 +581,71 @@ void DrawThermo()
   spr2.fillSprite(TFT_BLACK);
   spr2.drawXBitmap(0, 0, check_bits, check_width, check_height, TFT_GREEN);
   spr2.pushSprite(410, 250);
+  spr3.loadFont(FONT_50);
   spr3.fillSprite(TFT_BLACK);
   spr3.drawString("Actual:", 0, 40);
-  spr3.drawString(String(setValue, 1) + " °C", 130, 40);
+  spr3.drawString(thermoString, 130, 40);
   spr3.drawString("New:", 0, 135);
   spr3.setTextColor(TFT_BLACK, TFT_WHITE);
-  spr3.drawString(String(plotC, 1), 130, 135);
+  spr3.drawString(thermoString, 130, 135);
   spr3.setTextColor(TFT_WHITE, TFT_BLACK);
   spr3.pushSprite(210, 0);
+  spr3.unloadFont();
+}
+
+void DrawMainPage(bool forcedDraw)
+{
+  static int lastDrawnTemp;
+  static int lastDrawnIcons;
+  int actualIcons;
+
+  if (forcedDraw)
+  {
+    lastDrawnTemp = -273.15;
+    lastDrawnIcons = 8;
+  }
+  actualIcons = (int)radiatorON + 2 * (int)floorON + 4 * (int)flameON;
+  if ((round(actualTemperature * 10.0) == lastDrawnTemp) && (lastDrawnIcons == actualIcons))
+  {
+    return;
+  }
+  else
+  {
+    lastDrawnIcons = actualIcons;
+    lastDrawnTemp = round(actualTemperature * 10.0);
+  }
+
+  tft.fillScreen(TFT_BLACK);
+
+  spr1.loadFont(FONT_170);
+  spr1.fillSprite(TFT_BLACK);
+  spr1.drawString(String(actualTemperature, 1) + " °C", 20, 20);
+  spr1.pushSprite(0, 20);
+  spr1.unloadFont();
+  spr2.fillSprite(TFT_BLACK);
+  if (radiatorON)
+  {
+    spr2.drawXBitmap(0, 0, radiator_bits, radiator_width, radiator_height, TFT_WHITE);
+  }
+  spr2.pushSprite(10, 246);
+  spr2.fillSprite(TFT_BLACK);
+  if (floorON)
+  {
+    spr2.drawXBitmap(0, 0, floor_bits, floor_width, floor_height, TFT_WHITE);
+  }
+  spr2.pushSprite(202, 246);
+  spr2.fillSprite(TFT_BLACK);
+  if (flameON)
+  {
+    spr2.drawXBitmap(0, 0, flame_bits, flame_width, flame_height, TFT_RED);
+  }
+  spr2.pushSprite(106, 246);
+  spr2.fillSprite(TFT_BLACK);
+  spr2.drawXBitmap(0, 0, settings_bits, settings_width, settings_height, TFT_GOLD);
+  spr2.pushSprite(298, 246);
+  spr2.fillSprite(TFT_BLACK);
+  spr2.drawXBitmap(0, 0, info_bits, info_width, info_height, TFT_BLUE);
+  spr2.pushSprite(394, 246);
 }
 
 bool TouchInRange(uint16_t xmin, uint16_t ymin, uint16_t xmax, uint16_t ymax)
@@ -500,32 +661,6 @@ bool TouchInRange(uint16_t xmin, uint16_t ymin, uint16_t xmax, uint16_t ymax)
     }
   }
   return touchInRange;
-}
-
-void DrawMainPage()
-{
-  tft.fillScreen(TFT_BLACK);
-
-  spr1.loadFont(FONT_170);
-  spr1.fillSprite(TFT_BLACK);
-  spr1.drawString("22.4 °C", 20, 20);
-  spr1.pushSprite(0, 20);
-
-  spr2.fillSprite(TFT_BLACK);
-  spr2.drawXBitmap(0, 0, radiator_bits, radiator_width, radiator_height, TFT_WHITE);
-  spr2.pushSprite(10, 246);
-  spr2.fillSprite(TFT_BLACK);
-  spr2.drawXBitmap(0, 0, floor_bits, floor_width, floor_height, TFT_WHITE);
-  spr2.pushSprite(202, 246);
-  spr2.fillSprite(TFT_BLACK);
-  spr2.drawXBitmap(0, 0, flame_bits, flame_width, flame_height, TFT_RED);
-  spr2.pushSprite(106, 246);
-  spr2.fillSprite(TFT_BLACK);
-  spr2.drawXBitmap(0, 0, settings_bits, settings_width, settings_height, TFT_GOLD);
-  spr2.pushSprite(298, 246);
-  spr2.fillSprite(TFT_BLACK);
-  spr2.drawXBitmap(0, 0, info_bits, info_width, info_height, TFT_BLUE);
-  spr2.pushSprite(394, 246);
 }
 
 void ManageHeating()
@@ -740,8 +875,8 @@ void MainTask()
     ReadTransmitter();
     ManageHeating();
     OpenWeatherRead();
+    DrawMainPage(0);
     InfluxBatchWriter();
-    DrawMainPage();
 
     tasktime = millis() - tic;
     if (tasktime > maxtask)
@@ -762,7 +897,9 @@ void MainTask()
 }
 
 void IRAM_ATTR handleInterrupt() {
+#ifndef TEST_MODE
   ot.handleInterrupt();
+#endif
 }
 
 
@@ -800,6 +937,17 @@ float CalculateBoilerTemp(HEAT_SM controlState)
 
 void ProcessOpenTherm()
 {
+#ifdef TEST_MODE
+  static int testCounter = 0;
+
+  testCounter++;
+  if (testCounter > 60)
+  {
+    flameON = !flameON;
+    testCounter = 0;
+  }
+#else
+
   unsigned long request;
   unsigned long response;
   int otErrorCounter = 0;
@@ -832,6 +980,7 @@ void ProcessOpenTherm()
     }
   }
   ErrorManager(OT_ERROR, 0, 5);
+#endif
 }
 
 void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
@@ -1004,6 +1153,7 @@ void setup() {
   timer.setInterval(MAINTIMER, MainTask);
   timer.setInterval(OTTIMER, ProcessOpenTherm);
 
+#ifndef TEST_MODE
   Wire.begin(SDA, SCL);
   Wire.setClock(400000);
   delay(100);
@@ -1020,6 +1170,7 @@ void setup() {
   delay(100);
   sensor.setResolution(sensorDeviceAddress, DS18B20_RESOLUTION);
   delay(100);
+#endif
   ledcSetup(0, 5000, 8);
   ledcAttachPin(TFT_BL, 0);
   ledcWrite(0, 127);
@@ -1027,18 +1178,15 @@ void setup() {
 
   SPIFFS.begin();
   tft.begin();
-  touch.begin(128, 18, 19);
+  touch.begin(40, 18, 19);
   tft.setRotation(1);
   spr1.createSprite(480, 190);
   spr2.createSprite(64, 64);
   spr3.createSprite(280, 240);
   spr1.setColorDepth(16);
-  spr1.loadFont(FONT_170);
   spr1.setTextColor(TFT_WHITE, TFT_BLACK);
   spr3.setColorDepth(16);
-  spr3.loadFont(FONT_50);
   spr3.setTextColor(TFT_WHITE, TFT_BLACK);
-  DrawMainPage();
 
   WiFi.mode(WIFI_STA);
   WiFi.begin (ssid, password);
@@ -1078,6 +1226,7 @@ void loop() {
     TouchCheck();
     displayTouched = 0;
   }
+#ifndef TEST_MODE
   if (Blynk.connected())
   {
     Blynk.run();
@@ -1088,5 +1237,6 @@ void loop() {
     delay(1000);
     Blynk.connect();
   }
+#endif
   timer.run();
 }
