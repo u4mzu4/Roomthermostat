@@ -3,7 +3,7 @@
   BME280 + DS18B20 sensors
   OpenTherm boiler interface (http://ihormelnyk.com/opentherm_adapter)
   OpenTherm library (https://github.com/ihormelnyk/opentherm_library/)
-  Blynk service
+  Blynk 2.0 service
   InfluxDB database storage
 */
 
@@ -52,19 +52,22 @@ enum DISPLAY_SM {
 //Defines
 
 #define TEST_MODE
+#define I2C_SDA 18
+#define I2C_SCL 19
+#define TOUCH_THRESH 40
 
 #define RELAYPIN1 32
 #define RELAYPIN2 33
-#define WATERPIN  18
+#define WATERPIN  36
 #define OTPIN_IN  12
-#define OTPIN_OUT 14
+#define OTPIN_OUT 27
 #define INT_PIN   39
 #define NTPSERVER "hu.pool.ntp.org"
 #define TIMEOUT   5000        //5 sec
-#define AFTERCIRCTIME 360000 	//6 min
+#define AFTERCIRCTIME 360000   //6 min
 #define MAINTIMER 60013       //1 min
-#define OTTIMER	997           //1 sec
-#define SETTIMEOUT	50000 		//50 sec
+#define OTTIMER 997           //1 sec
+#define SETTIMEOUT  50000     //50 sec
 #define HYSTERESIS 0.1
 #define DS18B20_RESOLUTION 11
 #define DS18B20_DEFREG 0x2A80
@@ -78,6 +81,9 @@ enum DISPLAY_SM {
 #define FONT_170  "Logisoso170"
 #define FONT_50   "Logisoso50"
 #define FONT_30   "Logisoso30"
+
+#define BLYNK_TEMPLATE_ID "TMPL-psBPAGl"
+#define BLYNK_DEVICE_NAME "FutESP32"
 
 //Global variables
 const float transmOffset[NROFTRANSM] = {8.0, -2.0};
@@ -108,6 +114,7 @@ bool displayTouched;
 struct tm dateTime;
 
 //Init services
+TwoWire I2CWire = TwoWire(0);
 Adafruit_BME280 bme;
 BlynkTimer timer;
 WidgetTerminal terminal(V19);
@@ -128,7 +135,6 @@ void GetWaterTemp()
 {
 #ifdef TEST_MODE
   waterTemperature = 24.1;
-  Blynk.virtualWrite(V10, waterTemperature);
 #else
 
   unsigned short tempRaw = DS18B20_DEFREG;
@@ -157,7 +163,6 @@ void GetWaterTemp()
     ds18b20Errorcounter = 0;
   }
   ErrorManager(DS18B20_ERROR, ds18b20Errorcounter, 5);
-  Blynk.virtualWrite(V10, waterTemperature);
 #endif
 }
 
@@ -167,9 +172,6 @@ void ReadBME280()
   bmeTemperature = 25.2;
   actualHumidity = 44.1;
   actualPressure = 1004.2;
-  Blynk.virtualWrite(V14, bmeTemperature);
-  Blynk.virtualWrite(V3, actualHumidity);
-  Blynk.virtualWrite(V4, actualPressure);
 #else
 
   static float lastvalidTemperature;
@@ -203,9 +205,6 @@ void ReadBME280()
     lastvalidHumidity = actualHumidity;
   }
   ErrorManager(BME280_ERROR, bmeErrorcounter, 5);
-  Blynk.virtualWrite(V14, bmeTemperature);
-  Blynk.virtualWrite(V3, actualHumidity);
-  Blynk.virtualWrite(V4, actualPressure);
 #endif
 }
 
@@ -267,7 +266,6 @@ void ReadTransmitter()
   {
     kitchenTemp = actualTemperature;
   }
-  Blynk.virtualWrite(V11, kitchenTemp);
   if (2 == setControlBase)
   {
     actualTemperature = transData[0];
@@ -277,7 +275,6 @@ void ReadTransmitter()
     actualTemperature = bmeTemperature;
   }
   Blynk.virtualWrite(V1, actualTemperature);
-  Blynk.virtualWrite(V13, transData[0]);
 }
 
 void DrawFloatAsString(float floatToDraw, String unit, int posx, int posy)
@@ -465,12 +462,12 @@ void TouchCheck() {
           if (radiatorToBeSet)
           {
             setValue = actualValue + setOffset;
-            Blynk.virtualWrite(V5, setValue);
+            Blynk.virtualWrite(V2, setValue);
           }
           else
           {
             setFloorTemp = actualValue + setOffset;
-            Blynk.virtualWrite(V6, setFloorTemp);
+            Blynk.virtualWrite(V3, setFloorTemp);
           }
           spr2.fillSprite(TFT_WHITE);
           spr2.drawXBitmap(0, 0, check_bits, check_width, check_height, TFT_GREEN);
@@ -493,7 +490,7 @@ void TouchCheck() {
         if (TouchInRange(65, 25, 255, 215))
         {
           setControlBase = 2;
-          Blynk.virtualWrite(V12, setControlBase);
+          Blynk.virtualWrite(V0, setControlBase);
           spr1.fillSprite(TFT_BLACK);
           spr1.drawXBitmap(25, 0, bunkbed_bits, bunkbed_width, bunkbed_height, TFT_WHITE);
           spr1.drawXBitmap(265, 30, sofa_bits, sofa_width, sofa_height, TFT_RED);
@@ -505,7 +502,7 @@ void TouchCheck() {
         if (TouchInRange(65, 265, 255, 455))
         {
           setControlBase = 1;
-          Blynk.virtualWrite(V12, setControlBase);
+          Blynk.virtualWrite(V0, setControlBase);
           spr1.fillSprite(TFT_BLACK);
           spr1.drawXBitmap(25, 0, bunkbed_bits, bunkbed_width, bunkbed_height, TFT_BROWN);
           spr1.drawXBitmap(265, 30, sofa_bits, sofa_width, sofa_height, TFT_WHITE);
@@ -538,8 +535,8 @@ void TouchCheck() {
         {
           setValue = 20.0;
           setFloorTemp = 20.0;
-          Blynk.virtualWrite(V5, setValue);
-          Blynk.virtualWrite(V6, setFloorTemp);
+          Blynk.virtualWrite(V2, setValue);
+          Blynk.virtualWrite(V3, setFloorTemp);
           spr2.fillSprite(TFT_WHITE);
           spr2.drawXBitmap(0, 0, check_bits, check_width, check_height, TFT_GREEN);
           spr2.pushSprite(410, 250);
@@ -684,9 +681,6 @@ void ManageHeating()
       radiatorON = 0;
       floorON = 0;
       laststate = OFF;
-      Blynk.virtualWrite(V7, boilerON);
-      Blynk.virtualWrite(V8, floorON);
-      Blynk.virtualWrite(V9, radiatorON);
       return;
     }
   }
@@ -704,9 +698,6 @@ void ManageHeating()
           radiatorON = 0;
           floorON = 0;
           laststate = OFF;
-          Blynk.virtualWrite(V7, boilerON);
-          Blynk.virtualWrite(V8, floorON);
-          Blynk.virtualWrite(V9, radiatorON);
           break;
         }
         if (actualTemperature < (setValue - HYSTERESIS))
@@ -716,8 +707,6 @@ void ManageHeating()
           digitalWrite(RELAYPIN2, 1);
           boilerON = 1;
           radiatorON = 1;
-          Blynk.virtualWrite(V7, boilerON);
-          Blynk.virtualWrite(V9, radiatorON);
           break;
         }
         if (kitchenTemp < (setFloorTemp - HYSTERESIS))
@@ -727,8 +716,6 @@ void ManageHeating()
           digitalWrite(RELAYPIN1, 1);
           boilerON = 1;
           floorON = 1;
-          Blynk.virtualWrite(V7, boilerON);
-          Blynk.virtualWrite(V8, floorON);
           break;
         }
         break;
@@ -742,7 +729,6 @@ void ManageHeating()
           floorON = 1;
           heatstate = ALL_ON;
           laststate = RADIATOR_ON;
-          Blynk.virtualWrite(V8, floorON);
           break;
         }
         if (actualTemperature > (setValue + HYSTERESIS))
@@ -755,23 +741,18 @@ void ManageHeating()
           floorON = 1;
           heatstate = PUMPOVERRUN;
           laststate = RADIATOR_ON;
-          Blynk.virtualWrite(V7, boilerON);
-          Blynk.virtualWrite(V8, floorON);
-          Blynk.virtualWrite(V9, radiatorON);
           break;
         }
         if (flameON || (waterTemperature > MAXWATERTEMP))
         {
           digitalWrite(RELAYPIN1, 0);
           floorON = 0;
-          Blynk.virtualWrite(V8, floorON);
           break;
         }
         if (!flameON)
         {
           digitalWrite(RELAYPIN1, 1);
           floorON = 1;
-          Blynk.virtualWrite(V8, floorON);
           break;
         }
         break;
@@ -785,7 +766,6 @@ void ManageHeating()
           digitalWrite(RELAYPIN2, 1);
           radiatorON = 1;
           laststate = FLOOR_ON;
-          Blynk.virtualWrite(V9, radiatorON);
           break;
         }
         if ((kitchenTemp > (setFloorTemp + HYSTERESIS)) || (waterTemperature > MAXWATERTEMP))
@@ -794,7 +774,6 @@ void ManageHeating()
           boilerON = 0;
           heatstate = PUMPOVERRUN;
           laststate = FLOOR_ON;
-          Blynk.virtualWrite(V7, boilerON);
         }
         break;
       }
@@ -807,7 +786,6 @@ void ManageHeating()
           digitalWrite(RELAYPIN2, 0);
           radiatorON = 0;
           laststate = ALL_ON;
-          Blynk.virtualWrite(V9, radiatorON);
           break;
         }
         if ((kitchenTemp > (setFloorTemp + HYSTERESIS)) || (waterTemperature > MAXWATERTEMP))
@@ -816,7 +794,6 @@ void ManageHeating()
           floorON = 0;
           heatstate = RADIATOR_ON;
           laststate = ALL_ON;
-          Blynk.virtualWrite(V8, floorON);
           break;
         }
         break;
@@ -840,24 +817,19 @@ void ManageHeating()
   }
 }
 
-BLYNK_WRITE(V2)
+BLYNK_WRITE(V0)
 {
-  heatingON = param.asInt();
+  setControlBase = param.asInt();
   MainTask();
 }
-BLYNK_WRITE(V5)
+BLYNK_WRITE(V2)
 {
   setValue = param.asFloat();
   MainTask();
 }
-BLYNK_WRITE(V6)
+BLYNK_WRITE(V3)
 {
   setFloorTemp = param.asFloat();
-  MainTask();
-}
-BLYNK_WRITE(V12)
-{
-  setControlBase = param.asInt();
   MainTask();
 }
 
@@ -1006,7 +978,7 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
       if (prevControlBase > 0)
       {
         setControlBase = prevControlBase;
-        Blynk.virtualWrite(V12, setControlBase);
+        Blynk.virtualWrite(V0, setControlBase);
       }
     }
   }
@@ -1049,7 +1021,7 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
       {
         prevControlBase = setControlBase;
         setControlBase = 2;
-        Blynk.virtualWrite(V12, setControlBase);
+        Blynk.virtualWrite(V0, setControlBase);
         terminal.println("BME280 error");
         break;
       }
@@ -1057,7 +1029,7 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
       {
         prevControlBase = setControlBase;
         setControlBase = 1;
-        Blynk.virtualWrite(V12, setControlBase);
+        Blynk.virtualWrite(V0, setControlBase);
         terminal.println("Transmitter0 error");
         break;
       }
@@ -1125,7 +1097,6 @@ void OpenWeatherRead() {
     myJSONObject = JSON.parse(jsonBuffer);
     outsideTemp = (float)(double)(myJSONObject["main"]["temp"]);
     outsideTemp -= 273.15;
-    Blynk.virtualWrite(V15, outsideTemp);
   }
   hclient.end();
 }
@@ -1145,6 +1116,7 @@ void setup() {
   pinMode(RELAYPIN1, OUTPUT);
   pinMode(RELAYPIN2, OUTPUT);
   pinMode(INT_PIN, INPUT);
+  pinMode(WATERPIN, INPUT);
   digitalWrite(RELAYPIN1, 0);
   digitalWrite(RELAYPIN2, 0);
 
@@ -1154,10 +1126,10 @@ void setup() {
   timer.setInterval(OTTIMER, ProcessOpenTherm);
 
 #ifndef TEST_MODE
-  Wire.begin(SDA, SCL);
-  Wire.setClock(400000);
+  I2CWire.begin(I2C_SDA, I2C_SCL, 400000);
   delay(100);
-  bme.begin(BME280_ADDRESS_ALTERNATE);
+  bme.begin(BME280_ADDRESS_ALTERNATE, &I2CWire);
+  delay(100);
   bme.setSampling(Adafruit_BME280::MODE_FORCED,  // mode
                   Adafruit_BME280::SAMPLING_X16, // temperature
                   Adafruit_BME280::SAMPLING_X1,  // pressure
@@ -1171,14 +1143,16 @@ void setup() {
   sensor.setResolution(sensorDeviceAddress, DS18B20_RESOLUTION);
   delay(100);
 #endif
-  ledcSetup(0, 5000, 8);
+  touch.begin(TOUCH_THRESH, I2C_SDA, I2C_SCL);
+  delay(100);
+
+  ledcSetup(0, 5000, 3);
   ledcAttachPin(TFT_BL, 0);
-  ledcWrite(0, 127);
-  delay(300);
+  ledcWrite(0, 2);
+  delay(100);
 
   SPIFFS.begin();
   tft.begin();
-  touch.begin(40, 18, 19);
   tft.setRotation(1);
   spr1.createSprite(480, 190);
   spr2.createSprite(64, 64);
@@ -1187,6 +1161,7 @@ void setup() {
   spr1.setTextColor(TFT_WHITE, TFT_BLACK);
   spr3.setColorDepth(16);
   spr3.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.fillScreen(TFT_BLACK);
 
   WiFi.mode(WIFI_STA);
   WiFi.begin (ssid, password);
@@ -1201,19 +1176,25 @@ void setup() {
       break;
     }
   }
+  Serial.print("Connection error:");
+  Serial.println(failSafe);
 
   if (!failSafe)
   {
     configTime(3600, 3600, NTPSERVER);
     influxclient.setWriteOptions(WriteOptions().writePrecision(WRITE_PRECISION).batchSize(MAX_BATCH_SIZE).bufferSize(WRITE_BUFFER_SIZE));
     influxclient.validateConnection();
+    Serial.println("Influx ready");
     Blynk.config(auth);
-    Blynk.connect();
+    Serial.println("Config set ready");
+    Serial.println("Connection status: ");
+    Serial.println(Blynk.connect());
+    Serial.println("Connection finished");
     Blynk.syncAll();
-    Blynk.virtualWrite(V7, boilerON);
-    Blynk.virtualWrite(V8, floorON);
-    Blynk.virtualWrite(V9, radiatorON);
+    Serial.println("Synced");
     terminal.clear();
+    Serial.println("Terminal cleared");
+
   }
 
   ot.begin(handleInterrupt);
@@ -1226,17 +1207,9 @@ void loop() {
     TouchCheck();
     displayTouched = 0;
   }
-#ifndef TEST_MODE
   if (Blynk.connected())
   {
     Blynk.run();
   }
-  else
-  {
-    Blynk.disconnect();
-    delay(1000);
-    Blynk.connect();
-  }
-#endif
   timer.run();
 }
