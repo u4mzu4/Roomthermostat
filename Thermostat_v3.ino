@@ -1,14 +1,14 @@
 /*
-  Lolin D32 Pro development board (https://docs.wemos.cc/en/latest/d32/d32_pro.html)
+  ESP32-S3-Wroom-1-N8R2 based development board (own design)
   DS18B20 sensors
-  OpenTherm boiler interface (http://ihormelnyk.com/opentherm_adapter)
+  OpenTherm boiler interface (included into the devboard)
   OpenTherm library (https://github.com/ihormelnyk/opentherm_library/)
   InfluxDB database storage
 */
 
 //Includes
 #include <Arduino_JSON.h>
-#include <BlynkSimpleEsp32_SSL.h>
+#include <SimpleTimer.h>
 #include <DallasTemperature.h>
 #include <HTTPClient.h>
 #include <icons_wt32.h>
@@ -18,35 +18,34 @@
 
 //Enums
 enum HEAT_SM {
-  OFF         = 0,
+  OFF = 0,
   RADIATOR_ON = 1,
-  FLOOR_ON    = 2,
-  ALL_ON      = 3,
+  FLOOR_ON = 2,
+  ALL_ON = 3,
   PUMPOVERRUN = 4,
 };
 
 enum ERROR_T {
   DS18B20_ERROR = 1,
-  BME280_ERROR  = 2,
+  BME280_ERROR = 2,
   TRANSM0_ERROR = 4,
   TRANSM1_ERROR = 8,
-  OT_ERROR      = 16,
+  OT_ERROR = 16,
   DISPLAY_ERROR = 32
 };
 
 //Defines
-
-#define RELAYPIN1 21
-#define RELAYPIN2 22
-#define WATERPIN  18
-#define OTPIN_IN  12
+#define RELAYPIN1 10
+#define RELAYPIN2 9
+#define WATERPIN 18
+#define OTPIN_IN 12
 #define OTPIN_OUT 14
 #define NTPSERVER "hu.pool.ntp.org"
-#define TIMEOUT   5000        //5 sec
-#define AFTERCIRCTIME 360000   //6 min
+#define TIMEOUT 5000          //5 sec
+#define AFTERCIRCTIME 360000  //6 min
 #define MAINTIMER 60013       //1 min
 #define OTTIMER 997           //1 sec
-#define SETTIMEOUT  50000     //50 sec
+#define SETTIMEOUT 50000      //50 sec
 #define HYSTERESIS 0.1
 #define DS18B20_RESOLUTION 11
 #define DS18B20_DEFREG 0x2A80
@@ -59,7 +58,7 @@ enum ERROR_T {
 #define WRITE_BUFFER_SIZE 18
 
 //Global variables
-const float transmOffset[NROFTRANSM] = {8.0, -2.0};
+const float transmOffset[NROFTRANSM] = { 8.0, -2.0 };
 
 float waterTemperature;
 float actualTemperature = 22.5;
@@ -85,7 +84,7 @@ bool failSafe = 0;
 struct tm dateTime;
 
 //Init services
-BlynkTimer timer;
+SimpleTimer timer;
 OneWire oneWire(WATERPIN);
 DallasTemperature sensor(&oneWire);
 DeviceAddress sensorDeviceAddress;
@@ -94,79 +93,62 @@ WiFiClient wclient;
 HTTPClient hclient;
 InfluxDBClient influxclient(influxdb_URL, influxdb_ORG, influxdb_BUCKET, influxdb_TOKEN);
 
-void GetWaterTemp()
-{
+void GetWaterTemp() {
   unsigned short tempRaw = DS18B20_DEFREG;
   static float lastvalidTemperature;
   static int ds18b20Errorcounter = 0;
   unsigned long DS18B20timeout = millis();
 
-  while (DS18B20_DEFREG == tempRaw)
-  {
+  while (DS18B20_DEFREG == tempRaw) {
     sensor.requestTemperaturesByAddress(sensorDeviceAddress);
     tempRaw = sensor.getTemp(sensorDeviceAddress);
-    if (millis() - DS18B20timeout > TIMEOUT)
-    {
+    if (millis() - DS18B20timeout > TIMEOUT) {
       break;
     }
   }
   waterTemperature = (float)tempRaw / 128.0;
-  if (waterTemperature > 84.0)
-  {
+  if (waterTemperature > 84.0) {
     waterTemperature = lastvalidTemperature;
     ds18b20Errorcounter++;
-  }
-  else
-  {
+  } else {
     lastvalidTemperature = waterTemperature;
     ds18b20Errorcounter = 0;
   }
   ErrorManager(DS18B20_ERROR, ds18b20Errorcounter, 5);
 }
 
-bool RefreshDateTime()
-{
+bool RefreshDateTime() {
   bool timeIsValid = getLocalTime(&dateTime);
 
-  if (dateTime.tm_year > 135)
-  {
+  if (dateTime.tm_year > 135) {
     return 0;
   }
   return (timeIsValid);
 }
 
-void ReadTransmitter()
-{
+void ReadTransmitter() {
   static float lastvalidtransTemp[NROFTRANSM];
-  static int transmErrorcounter[NROFTRANSM] = {0, 0};
+  static int transmErrorcounter[NROFTRANSM] = { 0, 0 };
 
-  if (failSafe)
-  {
+  if (failSafe) {
     actualTemperature = bmeTemperature;
     kitchenTemp = bmeTemperature;
     return;
   }
 
-  for (int i = 0; i < NROFTRANSM; i++)
-  {
+  for (int i = 0; i < NROFTRANSM; i++) {
     hclient.begin(wclient, host[i]);
     hclient.setConnectTimeout(500);
-    if (HTTP_CODE_OK == hclient.GET())
-    {
+    if (HTTP_CODE_OK == hclient.GET()) {
       transData[i] = hclient.getString().toFloat();
-    }
-    else
-    {
+    } else {
       transData[i] = 0.0;
     }
     hclient.end();
-    if ((transData[i] < 10.0) || transData[i] > 84.0)
-    {
+    if ((transData[i] < 10.0) || transData[i] > 84.0) {
       transData[i] = lastvalidtransTemp[i];
       transmErrorcounter[i]++;
-    }
-    else
-    {
+    } else {
       transData[i] -= transmOffset[i];
       lastvalidtransTemp[i] = transData[i];
       transmErrorcounter[i] = 0;
@@ -174,38 +156,27 @@ void ReadTransmitter()
   }
   ErrorManager(TRANSM0_ERROR, transmErrorcounter[0], 8);
   ErrorManager(TRANSM1_ERROR, transmErrorcounter[1], 5);
-  if (transmErrorcounter[1] < 5)
-  {
+  if (transmErrorcounter[1] < 5) {
     kitchenTemp = transData[1];
-  }
-  else
-  {
+  } else {
     kitchenTemp = actualTemperature;
   }
-  if (2 == setControlBase)
-  {
+  if (2 == setControlBase) {
     actualTemperature = transData[0];
-  }
-  else
-  {
+  } else {
     actualTemperature = bmeTemperature;
   }
 }
 
-void ManageHeating()
-{
+void ManageHeating() {
   static unsigned long aftercirc;
   static HEAT_SM heatstate = OFF;
   static HEAT_SM laststate;
 
-  if (!heatingON)
-  {
-    if (laststate = OFF)
-    {
+  if (!heatingON) {
+    if (laststate = OFF) {
       return;
-    }
-    else
-    {
+    } else {
       temperatureRequest = 0.0;
       digitalWrite(RELAYPIN1, 0);
       digitalWrite(RELAYPIN2, 0);
@@ -217,12 +188,10 @@ void ManageHeating()
     }
   }
 
-  switch (heatstate)
-  {
+  switch (heatstate) {
     case OFF:
       {
-        if (laststate != OFF)
-        {
+        if (laststate != OFF) {
           temperatureRequest = 0.0;
           digitalWrite(RELAYPIN1, 0);
           digitalWrite(RELAYPIN2, 0);
@@ -232,8 +201,7 @@ void ManageHeating()
           laststate = OFF;
           break;
         }
-        if (actualTemperature < (setValue - HYSTERESIS))
-        {
+        if (actualTemperature < (setValue - HYSTERESIS)) {
           heatstate = RADIATOR_ON;
           temperatureRequest = CalculateBoilerTemp(heatstate);
           digitalWrite(RELAYPIN2, 1);
@@ -241,8 +209,7 @@ void ManageHeating()
           radiatorON = 1;
           break;
         }
-        if (kitchenTemp < (setFloorTemp - HYSTERESIS))
-        {
+        if (kitchenTemp < (setFloorTemp - HYSTERESIS)) {
           heatstate = FLOOR_ON;
           temperatureRequest = CalculateBoilerTemp(heatstate);
           digitalWrite(RELAYPIN1, 1);
@@ -255,16 +222,14 @@ void ManageHeating()
     case RADIATOR_ON:
       {
         temperatureRequest = CalculateBoilerTemp(heatstate);
-        if (kitchenTemp < (setFloorTemp - HYSTERESIS))
-        {
+        if (kitchenTemp < (setFloorTemp - HYSTERESIS)) {
           digitalWrite(RELAYPIN1, 1);
           floorON = 1;
           heatstate = ALL_ON;
           laststate = RADIATOR_ON;
           break;
         }
-        if (actualTemperature > (setValue + HYSTERESIS))
-        {
+        if (actualTemperature > (setValue + HYSTERESIS)) {
           temperatureRequest = 0.0;
           digitalWrite(RELAYPIN1, 1);
           digitalWrite(RELAYPIN2, 0);
@@ -275,14 +240,12 @@ void ManageHeating()
           laststate = RADIATOR_ON;
           break;
         }
-        if (flameON || (waterTemperature > MAXWATERTEMP))
-        {
+        if (flameON || (waterTemperature > MAXWATERTEMP)) {
           digitalWrite(RELAYPIN1, 0);
           floorON = 0;
           break;
         }
-        if (!flameON)
-        {
+        if (!flameON) {
           digitalWrite(RELAYPIN1, 1);
           floorON = 1;
           break;
@@ -292,16 +255,14 @@ void ManageHeating()
     case FLOOR_ON:
       {
         temperatureRequest = CalculateBoilerTemp(heatstate);
-        if (actualTemperature < (setValue - HYSTERESIS))
-        {
+        if (actualTemperature < (setValue - HYSTERESIS)) {
           heatstate = ALL_ON;
           digitalWrite(RELAYPIN2, 1);
           radiatorON = 1;
           laststate = FLOOR_ON;
           break;
         }
-        if ((kitchenTemp > (setFloorTemp + HYSTERESIS)) || (waterTemperature > MAXWATERTEMP))
-        {
+        if ((kitchenTemp > (setFloorTemp + HYSTERESIS)) || (waterTemperature > MAXWATERTEMP)) {
           temperatureRequest = 0.0;
           boilerON = 0;
           heatstate = PUMPOVERRUN;
@@ -312,16 +273,14 @@ void ManageHeating()
     case ALL_ON:
       {
         temperatureRequest = CalculateBoilerTemp(heatstate);
-        if (actualTemperature > (setValue + HYSTERESIS))
-        {
+        if (actualTemperature > (setValue + HYSTERESIS)) {
           heatstate = FLOOR_ON;
           digitalWrite(RELAYPIN2, 0);
           radiatorON = 0;
           laststate = ALL_ON;
           break;
         }
-        if ((kitchenTemp > (setFloorTemp + HYSTERESIS)) || (waterTemperature > MAXWATERTEMP))
-        {
+        if ((kitchenTemp > (setFloorTemp + HYSTERESIS)) || (waterTemperature > MAXWATERTEMP)) {
           digitalWrite(RELAYPIN1, 0);
           floorON = 0;
           heatstate = RADIATOR_ON;
@@ -332,14 +291,12 @@ void ManageHeating()
       }
     case PUMPOVERRUN:
       {
-        if (laststate != PUMPOVERRUN)
-        {
+        if (laststate != PUMPOVERRUN) {
           aftercirc = millis();
           laststate = PUMPOVERRUN;
           break;
         }
-        if (millis() - aftercirc > AFTERCIRCTIME)
-        {
+        if (millis() - aftercirc > AFTERCIRCTIME) {
           heatstate = OFF;
           laststate = PUMPOVERRUN;
           break;
@@ -349,8 +306,7 @@ void ManageHeating()
   }
 }
 
-void MainTask()
-{
+void MainTask() {
   unsigned long tic = millis();
   static unsigned int mintask = 4000;
   static unsigned int maxtask = 0;
@@ -364,12 +320,10 @@ void MainTask()
   InfluxBatchWriter();
 
   tasktime = millis() - tic;
-  if (tasktime > maxtask)
-  {
+  if (tasktime > maxtask) {
     maxtask = tasktime;
   }
-  if (tasktime < mintask)
-  {
+  if (tasktime < mintask) {
     mintask = tasktime;
   }
 }
@@ -378,45 +332,35 @@ void IRAM_ATTR handleInterrupt() {
   ot.handleInterrupt();
 }
 
-float CalculateBoilerTemp(HEAT_SM controlState)
-{
+float CalculateBoilerTemp(HEAT_SM controlState) {
   float boilerTemp;
   float errorSignal;
 
-  if (FLOOR_ON == controlState)
-  {
+  if (FLOOR_ON == controlState) {
     errorSignal = setFloorTemp + HYSTERESIS - kitchenTemp;
     boilerTemp = 30.0 + errorSignal * 50.0;
-  }
-  else
-  {
+  } else {
     errorSignal = setValue + HYSTERESIS - actualTemperature;
     boilerTemp = FLOOR_TEMP + errorSignal * 100.0;
   }
-  if (boilerTemp > RADIATOR_TEMP)
-  {
+  if (boilerTemp > RADIATOR_TEMP) {
     boilerTemp = RADIATOR_TEMP;
   }
-  if (boilerTemp < 0.0)
-  {
+  if (boilerTemp < 0.0) {
     boilerTemp = 0.0;
   }
   return boilerTemp;
 }
 
-void ProcessOpenTherm()
-{
+void ProcessOpenTherm() {
   unsigned long request;
   unsigned long response;
   int otErrorCounter = 0;
 
-  if (!boilerON)
-  {
+  if (!boilerON) {
     request = ot.buildSetBoilerStatusRequest(0, 1, 0, 0, 0);
     flameON = 0;
-  }
-  else
-  {
+  } else {
     request = ot.buildSetBoilerStatusRequest(1, 1, 0, 0, 0);
     response = ot.sendRequest(request);
     flameON = ot.isFlameOn(response);
@@ -424,118 +368,76 @@ void ProcessOpenTherm()
   }
   response = ot.sendRequest(request);
 
-  while (!ot.isValidResponse(response))
-  {
+  while (!ot.isValidResponse(response)) {
     otErrorCounter++;
     response = ot.sendRequest(request);
     ErrorManager(OT_ERROR, otErrorCounter, 5);
-    if (otErrorCounter >= 5)
-    {
-      /*
-        terminal.println("Request: 0x" + String(request, HEX));
-        terminal.println("Response: 0x" + String(response, HEX));
-        terminal.println("Status: " + String(ot.statusToString(ot.getLastResponseStatus())));
-        terminal.flush();
-      */
+    if (otErrorCounter >= 5) {
       return;
     }
   }
   ErrorManager(OT_ERROR, 0, 5);
 }
 
-void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
-{
+void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit) {
   static byte errorMask = B00000000;
   static byte prevErrorMask = B00000000;
   static unsigned long errorStart;
   static int prevControlBase;
   char errorTime[21];
 
-  if ((errorCounter == 0) && (errorMask & errorID))
-  {
+  if ((errorCounter == 0) && (errorMask & errorID)) {
     errorMask ^= errorID;
     prevErrorMask = errorMask;
-    /*
-      terminal.print("Error ID");
-      terminal.print(errorID);
-      terminal.print(" cleared after ");
-      terminal.print((millis() - errorStart) / 1000);
-      terminal.println(" seconds");
-      terminal.flush();
-    */
-    if (!errorMask)
-    {
-      if (prevControlBase > 0)
-      {
+    if (!errorMask) {
+      if (prevControlBase > 0) {
         setControlBase = prevControlBase;
-        //Blynk.virtualWrite(V0, setControlBase);
       }
     }
   }
 
-  if (errorCounter < errorLimit)
-  {
+  if (errorCounter < errorLimit) {
     return;
   }
-  if (!errorMask)
-  {
+  if (!errorMask) {
     errorStart = millis();
   }
   errorMask |= errorID;
-  if (errorMask == prevErrorMask)
-  {
+  if (errorMask == prevErrorMask) {
     return;
-  }
-  else
-  {
+  } else {
     prevErrorMask = errorMask;
   }
-  if (RefreshDateTime())
-  {
+  if (RefreshDateTime()) {
     sprintf(errorTime, "%i-%02i-%02i %02i:%02i:%02i", dateTime.tm_year + 1900, dateTime.tm_mon, dateTime.tm_mday, dateTime.tm_hour, dateTime.tm_min, dateTime.tm_sec);
-    //terminal.println(errorTime);
-    //terminal.flush();
   }
-  else
-  {
-    //terminal.println(String(millis()));
-  }
-  switch (errorID)
-  {
+  switch (errorID) {
     case DS18B20_ERROR:
       {
-        //terminal.println("DS18B20 error");
         break;
       }
     case BME280_ERROR:
       {
         prevControlBase = setControlBase;
         setControlBase = 2;
-        //Blynk.virtualWrite(V0, setControlBase);
-        //terminal.println("BME280 error");
         break;
       }
     case TRANSM0_ERROR:
       {
         prevControlBase = setControlBase;
         setControlBase = 1;
-        //Blynk.virtualWrite(V0, setControlBase);
-        //terminal.println("Transmitter0 error");
         break;
       }
     case TRANSM1_ERROR:
       {
-        //terminal.println("Transmitter1 error");
         break;
       }
     case OT_ERROR:
       {
-        //terminal.println("OpenTherm error");
         break;
       }
     case DISPLAY_ERROR:
       {
-        //terminal.println("Display error");
         break;
       }
     default:
@@ -543,7 +445,6 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit)
         break;
       }
   }
-  //terminal.flush();
 }
 
 void InfluxBatchReader() {
@@ -551,7 +452,7 @@ void InfluxBatchReader() {
   String query2 = "from(bucket: \"thermo_data\") |> range(start: -1m, stop:now()) |> filter(fn: (r) => r[\"_measurement\"] == \"thermostat\" and r[\"_field\"] == \"setValue\") |> last()";
   String query3 = "from(bucket: \"thermo_data\") |> range(start: -1m, stop:now()) |> filter(fn: (r) => r[\"_measurement\"] == \"thermostat\" and r[\"_field\"] == \"setFloorTemp\") |> last()";
   String query4 = "from(bucket: \"thermo_data\") |> range(start: -1m, stop:now()) |> filter(fn: (r) => r[\"_measurement\"] == \"thermostat\" and r[\"_field\"] == \"setControlBase\") |> last()";
-  
+
   FluxQueryResult result = influxclient.query(query1);
   while (result.next()) {
     bmeTemperature = result.getValueByName("_value").getDouble();
@@ -583,15 +484,14 @@ void InfluxBatchWriter() {
   float flameON_f = (float)flameON;
   float setControlBase_f = (float)setControlBase;
 
-  String influxDataType[MAX_BATCH_SIZE] = {"meas", "meas", "meas", "meas", "meas", "status", "status", "status", "status"};
-  String influxDataUnit[MAX_BATCH_SIZE] = {"Celsius", "Celsius", "Celsius", "Celsius", "Celsius", "bool", "bool", "bool", "bool"};
-  String influxFieldName[MAX_BATCH_SIZE] = {"waterTemperature", "actualTemperature", "kitchenTemp", "childRoomTemp", "outsideTemp", "boilerON", "floorON", "radiatorON", "flameON"};
-  float* influxFieldValue[MAX_BATCH_SIZE] = {&waterTemperature, &actualTemperature, &kitchenTemp, &transData[0], &outsideTemp, &boilerON_f, &floorON_f, &radiatorON_f, &flameON_f};
+  String influxDataType[MAX_BATCH_SIZE] = { "meas", "meas", "meas", "meas", "meas", "status", "status", "status", "status" };
+  String influxDataUnit[MAX_BATCH_SIZE] = { "Celsius", "Celsius", "Celsius", "Celsius", "Celsius", "bool", "bool", "bool", "bool" };
+  String influxFieldName[MAX_BATCH_SIZE] = { "waterTemperature", "actualTemperature", "kitchenTemp", "childRoomTemp", "outsideTemp", "boilerON", "floorON", "radiatorON", "flameON" };
+  float* influxFieldValue[MAX_BATCH_SIZE] = { &waterTemperature, &actualTemperature, &kitchenTemp, &transData[0], &outsideTemp, &boilerON_f, &floorON_f, &radiatorON_f, &flameON_f };
 
   if (influxclient.isBufferEmpty()) {
     tnow = GetEpochTime();
-    for (int i = 0; i < MAX_BATCH_SIZE; i++)
-    {
+    for (int i = 0; i < MAX_BATCH_SIZE; i++) {
       Point influxBatchPoint("thermostat");
       influxBatchPoint.addTag("data_type", influxDataType[i]);
       influxBatchPoint.addTag("data_unit", influxDataUnit[i]);
@@ -609,8 +509,7 @@ void OpenWeatherRead() {
 
   hclient.begin(wclient, openweatherURL);
   hclient.setConnectTimeout(500);
-  if (HTTP_CODE_OK == hclient.GET())
-  {
+  if (HTTP_CODE_OK == hclient.GET()) {
     jsonBuffer = hclient.getString();
     myJSONObject = JSON.parse(jsonBuffer);
     outsideTemp = (float)(double)(myJSONObject["main"]["temp"]);
@@ -647,21 +546,19 @@ void setup() {
   delay(100);
 
   WiFi.mode(WIFI_STA);
-  WiFi.begin (ssid, password);
+  WiFi.begin(ssid, password);
 
   // Wait for connection
   unsigned long wifitimeout = millis();
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    if (millis() - wifitimeout > TIMEOUT)
-    {
+    if (millis() - wifitimeout > TIMEOUT) {
       failSafe = 1;
       break;
     }
   }
 
-  if (!failSafe)
-  {
+  if (!failSafe) {
     configTime(3600, 3600, NTPSERVER);
     influxclient.setWriteOptions(WriteOptions().writePrecision(WRITE_PRECISION).batchSize(MAX_BATCH_SIZE).bufferSize(WRITE_BUFFER_SIZE));
     influxclient.validateConnection();
