@@ -49,6 +49,18 @@ enum ERROR_T {
 #define MAXWATERTEMP 36.0
 #define NROFTRANSM 2
 
+#define DEBUG_PRINT 1    // SET TO 0 OUT TO REMOVE TRACES
+
+#if DEBUG_PRINT
+#define D_SerialBegin(...) Serial.begin(__VA_ARGS__);
+#define D_print(...)    Serial.print(__VA_ARGS__)
+#define D_println(...)  Serial.println(__VA_ARGS__)
+#else
+#define D_SerialBegin(...)
+#define D_print(...)
+#define D_println(...)
+#endif
+
 //Global variables
 const float transmOffset[NROFTRANSM] = { 8.0, -2.0 };
 
@@ -94,6 +106,8 @@ void GetWaterTemp() {
     lastvalidTemperature = waterTemperature;
     ds18b20Errorcounter = 0;
   }
+  D_print("Watertemp: ");
+  D_println(waterTemperature);
   ErrorManager(DS18B20_ERROR, ds18b20Errorcounter, 5);
 }
 
@@ -128,6 +142,10 @@ void ReadTransmitter() {
     kitchenTemp = actualTemperature;
   }
   actualTemperature = transData[0];
+  D_print("Kitchentemp: ");
+  D_println(kitchenTemp);
+  D_print("actualTemp: ");
+  D_println(actualTemperature);
 }
 
 void ManageHeating() {
@@ -280,6 +298,8 @@ float CalculateBoilerTemp(HEAT_SM controlState) {
   if (boilerTemp < 0.0) {
     boilerTemp = 0.0;
   }
+  D_print("boilerTemp: ");
+  D_println(boilerTemp);
   return boilerTemp;
 }
 
@@ -359,6 +379,8 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit) {
 }
 
 void setup() {
+  D_SerialBegin(115200)
+  delay(100);
   pinMode(RELAYPIN1, OUTPUT);
   pinMode(RELAYPIN2, OUTPUT);
   pinMode(WATERPIN, INPUT);
