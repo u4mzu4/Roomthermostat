@@ -357,6 +357,8 @@ void IRAM_ATTR HandleTouchISR() {
 }
 
 void setup() {
+  Serial.begin(115200);
+  delay(100);
   pinMode(INT_PIN, INPUT);
   attachInterrupt(INT_PIN, HandleTouchISR, FALLING);
 
@@ -400,6 +402,8 @@ void setup() {
     }
   }
   if (!failSafe) {
+    Serial.print("IP Adress: ");
+    Serial.println(WiFi.localIP());
     configTzTime(TIMEZONE, NTPSERVER);
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
       request->send(200, "text/plain", message);
