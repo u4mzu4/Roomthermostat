@@ -47,14 +47,13 @@ enum ERROR_T {
 #define RADIATOR_TEMP 60.0
 #define FLOOR_TEMP 40.0
 #define MAXWATERTEMP 36.0
-#define NROFTRANSM 2
 
-#define DEBUG_PRINT 1    // SET TO 0 OUT TO REMOVE TRACES
+#define DEBUG_PRINT 1  // SET TO 0 OUT TO REMOVE TRACES
 
 #if DEBUG_PRINT
 #define D_SerialBegin(...) Serial.begin(__VA_ARGS__);
-#define D_print(...)    Serial.print(__VA_ARGS__)
-#define D_println(...)  Serial.println(__VA_ARGS__)
+#define D_print(...) Serial.print(__VA_ARGS__)
+#define D_println(...) Serial.println(__VA_ARGS__)
 #else
 #define D_SerialBegin(...)
 #define D_print(...)
@@ -62,7 +61,7 @@ enum ERROR_T {
 #endif
 
 //Global variables
-const float transmOffset[NROFTRANSM] = { 8.0, -2.0 };
+const float transmOffset[NROFTRANSM] = { 8.0, -2.0, 0.0 };
 
 float waterTemperature;
 float actualTemperature = 22.5;
@@ -141,11 +140,25 @@ void ReadTransmitter() {
   } else {
     kitchenTemp = actualTemperature;
   }
-  actualTemperature = transData[0];
+  if (transmErrorcounter[0] < 8) {
+    actualTemperature = transData[0];
+  } else {
+    actualTemperature = kitchenTemp;
+  }
+  if (transmErrorcounter[2] < 5) {
+    setValue = transData[2];
+    setFloorTemp = transData[2];
+  } else {
+    setValue = 22.5;
+    setFloorTemp = 22.5;
+  }
+
   D_print("Kitchentemp: ");
   D_println(kitchenTemp);
   D_print("actualTemp: ");
   D_println(actualTemperature);
+  D_print("setValue: ");
+  D_println(setValue);
 }
 
 void ManageHeating() {
@@ -380,7 +393,7 @@ void ErrorManager(ERROR_T errorID, int errorCounter, int errorLimit) {
 
 void setup() {
   D_SerialBegin(115200)
-  delay(100);
+    delay(100);
   pinMode(RELAYPIN1, OUTPUT);
   pinMode(RELAYPIN2, OUTPUT);
   pinMode(WATERPIN, INPUT);

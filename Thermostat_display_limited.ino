@@ -5,9 +5,10 @@
 
 //Includes
 #include <Adafruit_BME280.h>
+#include <Adafruit_FT6206.h>
 #include <ESPAsyncWebServer.h>
-#include <FT6236.h>
 #include <icons_wt32.h>
+#include <LittleFS.h>
 #include <TFT_eSPI.h>
 #include <Ticker.h>
 #include <time.h>
@@ -47,7 +48,7 @@ float actualPressure;
 float bmeTemperature;
 float setValue = 22.5;
 
-const float BME_offset = 4.73;
+const float BME_offset = 7.23;
 
 bool disableMainTask = 0;
 bool failSafe = 0;
@@ -57,15 +58,15 @@ struct tm dateTime;
 
 String message = String(setValue, 1);
 
-//Init services
+//Init servi  ces
 TwoWire I2CWire = TwoWire(0);
 Adafruit_BME280 bme;
+Adafruit_FT6206 touch = Adafruit_FT6206();
 Ticker mainTimer;
 TFT_eSPI tft = TFT_eSPI();
 TFT_eSprite spr1 = TFT_eSprite(&tft);  //480x190
 TFT_eSprite spr2 = TFT_eSprite(&tft);  //64x64
 TFT_eSprite spr3 = TFT_eSprite(&tft);  //280x240
-FT6236 touch = FT6236();
 AsyncWebServer server(PORT);
 
 void ReadBME280() {
@@ -133,7 +134,7 @@ void TouchCheck() {
           spr2.pushSprite(394, 246);
           delay(400);
           tft.fillScreen(TFT_BLACK);
-          tft.loadFont(FONT_30);
+          tft.loadFont(FONT_30, LittleFS);
           sprintf(plotString, "%i-%02i-%02i", dateTime.tm_year + 1900, dateTime.tm_mon, dateTime.tm_mday);
           tft.drawString(plotString, 10, 10);
           sprintf(plotString, "%02i:%02i:%02i", dateTime.tm_hour, dateTime.tm_min, dateTime.tm_sec);
@@ -141,7 +142,7 @@ void TouchCheck() {
           tft.drawString("Nappali: ", 10, 50);
           DrawFloatAsString(bmeTemperature, " °C", 160, 50);
           tft.unloadFont();
-          tft.loadFont(FONT_50);
+          tft.loadFont(FONT_50, LittleFS);
           tft.drawString("Para: ", 10, 210);
           DrawFloatAsString(actualHumidity, "%", 160, 210);
           tft.drawString("Nyomas: ", 10, 270);
@@ -157,10 +158,7 @@ void TouchCheck() {
           spr2.drawXBitmap(0, 0, settings_bits, settings_width, settings_height, TFT_GOLD);
           spr2.pushSprite(298, 246);
           delay(400);
-          tft.fillScreen(TFT_BLACK);
-          spr1.fillSprite(TFT_BLACK);
           DrawThermo();
-          spr1.pushSprite(0, 80);
           stateStartTime = millis();
           displayBox = THERMO_SET;
         }
@@ -179,14 +177,12 @@ void TouchCheck() {
           spr2.drawXBitmap(0, 0, arrow_up_bits, arrow_up_width, arrow_up_height, TFT_RED);
           spr2.pushSprite(120, 40);
           setOffset += 0.5;
-          spr3.loadFont(FONT_50);
+          spr3.loadFont(FONT_50, LittleFS);
           spr3.fillSprite(TFT_BLACK);
           spr3.drawString("Actual:", 0, 40);
           spr3.drawString(String(actualValue, 1) + "  °C", 130, 40);
           spr3.drawString("New:", 0, 135);
-          spr3.setTextColor(TFT_BLACK, TFT_WHITE);
           spr3.drawString(String(actualValue + setOffset, 1) + "  °C", 130, 135);
-          spr3.setTextColor(TFT_WHITE, TFT_BLACK);
           spr3.pushSprite(210, 0);
           spr3.unloadFont();
           spr2.fillSprite(TFT_BLACK);
@@ -198,14 +194,12 @@ void TouchCheck() {
           spr2.drawXBitmap(0, 0, arrow_down_bits, arrow_down_width, arrow_down_height, TFT_BLUE);
           spr2.pushSprite(120, 200);
           setOffset -= 0.5;
-          spr3.loadFont(FONT_50);
+          spr3.loadFont(FONT_50, LittleFS);
           spr3.fillSprite(TFT_BLACK);
           spr3.drawString("Actual:", 0, 40);
           spr3.drawString(String(actualValue, 1) + "  °C", 130, 40);
           spr3.drawString("New:", 0, 135);
-          spr3.setTextColor(TFT_BLACK, TFT_WHITE);
           spr3.drawString(String(actualValue + setOffset, 1) + "  °C", 130, 135);
-          spr3.setTextColor(TFT_WHITE, TFT_BLACK);
           spr3.pushSprite(210, 0);
           spr3.unloadFont();
           spr2.fillSprite(TFT_BLACK);
@@ -293,14 +287,12 @@ void DrawThermo() {
   spr2.fillSprite(TFT_BLACK);
   spr2.drawXBitmap(0, 0, check_bits, check_width, check_height, TFT_GREEN);
   spr2.pushSprite(410, 250);
-  spr3.loadFont(FONT_50);
+  spr3.loadFont(FONT_50, LittleFS);
   spr3.fillSprite(TFT_BLACK);
   spr3.drawString("Actual:", 0, 40);
   spr3.drawString(thermoString, 130, 40);
   spr3.drawString("New:", 0, 135);
-  spr3.setTextColor(TFT_BLACK, TFT_WHITE);
   spr3.drawString(thermoString, 130, 135);
-  spr3.setTextColor(TFT_WHITE, TFT_BLACK);
   spr3.pushSprite(210, 0);
   spr3.unloadFont();
 }
@@ -320,9 +312,9 @@ void DrawMainPage(bool forcedDraw) {
   }
 
   tft.fillScreen(TFT_BLACK);
-  spr1.loadFont(FONT_170);
+  spr1.loadFont(FONT_170, LittleFS);
   spr1.fillSprite(TFT_BLACK);
-  spr1.drawString(String(actualTemperature, 1) + "  °C", 20, 20);
+  spr1.drawString(String(actualTemperature, 1) + " °C", 20, 20);
   spr1.pushSprite(0, 20);
   spr1.unloadFont();
   spr2.fillSprite(TFT_BLACK);
@@ -337,6 +329,10 @@ bool TouchInRange(uint16_t xmin, uint16_t ymin, uint16_t xmax, uint16_t ymax) {
   bool touchInRange = false;
 
   TS_Point p = touch.getPoint();
+  Serial.print("Touched! X:");
+  Serial.print(p.x);
+  Serial.print(" Y:");
+  Serial.println(p.y);
   if ((p.x >= xmin) && (p.y >= ymin)) {
     if ((p.x <= xmax) && (p.y <= ymax)) {
       touchInRange = true;
@@ -372,12 +368,12 @@ void setup() {
                   Adafruit_BME280::SAMPLING_X1,   // humidity
                   Adafruit_BME280::FILTER_X16);   // filtering
   delay(100);
-  touch.begin(TOUCH_THRESH, I2C_SDA, I2C_SCL);
+  touch.begin(TOUCH_THRESH, &I2CWire);
   delay(100);
   ledcAttach(TFT_BL, 5000, 3);
   ledcWrite(0, 2);
   delay(100);
-  SPIFFS.begin();
+  LittleFS.begin();
   tft.begin();
   tft.setRotation(1);
   spr1.createSprite(480, 190);
@@ -415,7 +411,7 @@ void setup() {
 }
 
 void loop() {
-  if (displayTouched) {
+  if (displayTouched && touch.touched()) {
     TouchCheck();
     displayTouched = 0;
   }

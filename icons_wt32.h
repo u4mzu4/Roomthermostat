@@ -29,16 +29,11 @@
 #define sofa_width 190
 #define sofa_height 120
 
-const char* ssid      = "DarpAsusNet_2.4";
-const char* password  = "andrew243";
-const char* host[2]      = {"http://192.168.1.66/","http://192.168.1.78/"}; //Temperature transmitter
-const char* auth = "zmvvPo4sh9Vlm1QGCkrkad1J5w1bONFu"; //Bylink auth
-const char* openweatherURL= "http://api.openweathermap.org/data/2.5/weather?q=Budapest,HU&APPID=4586b2378b9d1e381c278be089a5befb"; //
-const char* influxdb_URL  = "http://192.168.1.103:8086";
-const char* influxdb_TOKEN = "4XATlEb-A_iXL1UvPV9PL243uDFHZ7Ig15tLUEBQNd5STFUFj3j_OeuCwssnQdisFfwgrLZc3iKtX1HMkc7CsQ==";
-const char* influxdb_ORG = "private";
-const char* influxdb_BUCKET = "thermo_data";
+#define NROFTRANSM 3
 
+const char* ssid      = "DarpAsusNet_2.4";
+const char* password  = "";
+const char* host[NROFTRANSM]      = {"http://192.168.1.66/","http://192.168.1.78/", "http://192.168.1.110/"}; //Temperature transmitter
 
 const unsigned char holiday_bits[] PROGMEM = {
    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
